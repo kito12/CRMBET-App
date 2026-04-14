@@ -5,7 +5,7 @@ import Link from "next/link";
 import { customers, tickets as seedTickets } from "@/lib/data";
 import type { Ticket, TicketPriority, TicketStatus, CustomerStatus } from "@/lib/data";
 import { StatusPill, PriorityPill } from "@/components/ui/StatusPill";
-import { ArrowLeft, Mail, Phone, Globe, Calendar, Ticket, AlertCircle, CheckCircle2, Plus } from "lucide-react";
+import { ArrowLeft, Mail, Phone, Globe, Calendar, Ticket as TicketIcon, AlertCircle, CheckCircle2, Plus } from "lucide-react";
 import TicketDetailModal from "@/components/tickets/TicketDetailModal";
 import Modal from "@/components/ui/Modal";
 import { InputField, SelectField, TextareaField } from "@/components/ui/FormField";
@@ -185,7 +185,7 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
             <h3 className="text-base font-semibold text-[#1a1c1c] tracking-tight mb-5">Support Stats</h3>
             <div className="grid grid-cols-3 gap-3">
               {[
-                { icon: Ticket,       label: "TOTAL",    value: clientTickets.length, color: "text-purple-600", bg: "bg-purple-50" },
+                { icon: TicketIcon,   label: "TOTAL",    value: clientTickets.length, color: "text-purple-600", bg: "bg-purple-50" },
                 { icon: AlertCircle,  label: "OPEN",     value: openCount,            color: "text-amber-600",  bg: "bg-amber-50" },
                 { icon: CheckCircle2, label: "RESOLVED", value: resolvedCount,        color: "text-emerald-600",bg: "bg-emerald-50" },
               ].map(({ icon: Icon, label, value, color, bg }) => (
