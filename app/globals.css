@@ -1,0 +1,120 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #7131d6;
+  --primary-container: #8b50f1;
+  --secondary: #0058bf;
+  --surface: #f9f9f9;
+  --surface-low: #f3f3f3;
+  --surface-lowest: #ffffff;
+  --on-surface: #1a1c1c;
+  --on-surface-variant: #48484a;
+}
+
+.dark {
+  --surface: #0e1018;
+  --surface-low: #151720;
+  --surface-lowest: #1d2030;
+  --on-surface: #ededf5;
+  --on-surface-variant: #8f8fa8;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--surface);
+  color: var(--on-surface);
+  font-family: "Inter", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.25s ease, color 0.2s ease;
+}
+
+/* Smooth theme transitions */
+*, *::before, *::after {
+  transition: background-color 0.25s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Override hardcoded Tailwind text colors in dark mode */
+.dark [class~="text-[#1a1c1c]"] { color: var(--on-surface) !important; }
+.dark [class~="text-[#48484a]"] { color: var(--on-surface-variant) !important; }
+.dark [class~="text-[#0058bf]"] { color: #60a5fa !important; }
+
+/* Override hardcoded hover/bg in dark mode */
+.dark [class~="hover:bg-[#f3f3f3]"]:hover { background-color: var(--surface-low) !important; }
+.dark [class~="bg-[#f3f3f3]"] { background-color: var(--surface-low) !important; }
+.dark [class~="bg-[#f0fdf4]"] { background-color: rgba(52, 211, 153, 0.1) !important; }
+
+/* Status & priority pill backgrounds → muted in dark mode */
+.dark [class~="bg-purple-50"] { background-color: rgba(113, 49, 214, 0.18) !important; }
+.dark [class~="bg-blue-50"]   { background-color: rgba(59, 130, 246, 0.15) !important; }
+.dark [class~="bg-emerald-50"]{ background-color: rgba(16, 185, 129, 0.15) !important; }
+.dark [class~="bg-amber-50"]  { background-color: rgba(245, 158, 11, 0.15) !important; }
+.dark [class~="bg-red-50"]    { background-color: rgba(239, 68, 68, 0.15)  !important; }
+.dark [class~="bg-orange-50"] { background-color: rgba(249, 115, 22, 0.15) !important; }
+.dark [class~="bg-slate-100"] { background-color: rgba(148, 163, 184, 0.12) !important; }
+
+/* Pill text colors → lightened in dark mode */
+.dark [class~="text-purple-700"] { color: #c084fc !important; }
+.dark [class~="text-blue-700"]   { color: #60a5fa !important; }
+.dark [class~="text-emerald-700"]{ color: #34d399 !important; }
+.dark [class~="text-emerald-700"]{ color: #34d399 !important; }
+.dark [class~="text-amber-700"]  { color: #fbbf24 !important; }
+.dark [class~="text-red-600"]    { color: #f87171 !important; }
+.dark [class~="text-orange-600"] { color: #fb923c !important; }
+.dark [class~="text-slate-600"]  { color: #94a3b8 !important; }
+.dark [class~="text-slate-500"]  { color: #94a3b8 !important; }
+.dark [class~="text-emerald-600"]{ color: #34d399 !important; }
+.dark [class~="text-amber-600"]  { color: #fbbf24 !important; }
+.dark [class~="text-blue-600"]   { color: #60a5fa !important; }
+.dark [class~="text-emerald-700"] { color: #34d399 !important; }
+
+/* Status dot border */
+.dark [class~="border-white"] { border-color: var(--surface-lowest) !important; }
+
+/* Placeholders */
+.dark ::placeholder { color: var(--on-surface-variant); opacity: 0.7; }
+
+/* Native form controls */
+.dark option {
+  background-color: var(--surface-low);
+  color: var(--on-surface);
+}
+
+@layer utilities {
+  .gradient-primary {
+    background: linear-gradient(135deg, #7131d6 0%, #8b50f1 100%);
+  }
+  .glass {
+    background: rgba(249, 249, 249, 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+  .dark .glass {
+    background: rgba(18, 20, 30, 0.75);
+  }
+  .text-display {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+  .text-headline {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.3;
+  }
+  .text-label-caps {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+}
