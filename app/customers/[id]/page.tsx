@@ -48,6 +48,7 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
 
   function handleCreateTicket(e: React.FormEvent) {
     e.preventDefault();
+    if (!customer) return;
     const now = new Date();
     const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     const label = `${months[now.getMonth()]} ${now.getDate()}, ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
