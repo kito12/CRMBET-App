@@ -3,18 +3,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Ticket, Users, UserCircle, Settings, Zap, Moon, Sun, Search,
+  LayoutDashboard, Ticket, Users, UserCircle, Settings, Zap, Moon, Sun, Search, MessageSquare,
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { useCommandPalette } from "./CommandPaletteProvider";
 import { tickets } from "@/lib/data";
 
 const navItems = [
-  { href: "/",         icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/tickets",  icon: Ticket,          label: "Tickets" },
-  { href: "/customers",icon: UserCircle,       label: "Customers" },
-  { href: "/users",    icon: Users,            label: "Support Team" },
-  { href: "/settings", icon: Settings,         label: "Settings" },
+  { href: "/",          icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/tickets",   icon: Ticket,          label: "Tickets" },
+  { href: "/customers", icon: UserCircle,       label: "Customers" },
+  { href: "/messages",  icon: MessageSquare,   label: "Messages" },
+  { href: "/users",     icon: Users,           label: "Support Team" },
+  { href: "/settings",  icon: Settings,        label: "Settings" },
 ];
 
 const openTicketCount = tickets.filter(t => t.status === "Open").length;
@@ -51,6 +52,7 @@ export default function Sidebar() {
         {navItems.map(({ href, icon: Icon, label }) => {
           const active = pathname === href || (href !== "/" && pathname.startsWith(href));
           const isTickets = href === "/tickets";
+          const isMessages = href === "/messages";
           return (
             <Link
               key={href}
@@ -67,6 +69,12 @@ export default function Sidebar() {
               {isTickets && openTicketCount > 0 && !active && (
                 <span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full gradient-primary text-white text-[9px] font-bold flex items-center justify-center">
                   {openTicketCount}
+                </span>
+              )}
+              {/* Badge for unread messages */}
+              {isMessages && !active && (
+                <span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-pink-500 text-white text-[9px] font-bold flex items-center justify-center">
+                  2
                 </span>
               )}
               {/* Tooltip */}
