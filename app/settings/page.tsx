@@ -3,6 +3,25 @@
 import { useState } from "react";
 import { User, Bell, Monitor, Info, Save, Zap } from "lucide-react";
 
+function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      role="switch"
+      aria-checked={on}
+      className={`relative inline-flex w-11 h-6 rounded-full flex-shrink-0 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
+        on ? "bg-purple-600" : "bg-slate-300"
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-200 ${
+          on ? "translate-x-5" : "translate-x-0"
+        }`}
+      />
+    </button>
+  );
+}
+
 export default function SettingsPage() {
   const [profile, setProfile] = useState({
     name: "John D.",
@@ -30,17 +49,6 @@ export default function SettingsPage() {
   function handleSave() {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
-  }
-
-  function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
-    return (
-      <button
-        onClick={onToggle}
-        className={`relative w-10 h-6 rounded-full transition-colors flex-shrink-0 ${on ? "bg-purple-600" : "bg-slate-300"}`}
-      >
-        <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${on ? "translate-x-4" : "translate-x-0.5"}`} />
-      </button>
-    );
   }
 
   const inputClass = "w-full px-4 py-2.5 rounded-xl text-sm text-[#1a1c1c] outline-none focus:ring-2 focus:ring-purple-200 transition-all";
