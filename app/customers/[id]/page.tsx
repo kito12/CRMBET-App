@@ -9,6 +9,7 @@ import { ArrowLeft, Mail, Phone, Globe, Calendar, Ticket, AlertCircle, CheckCirc
 import TicketDetailModal from "@/components/tickets/TicketDetailModal";
 import Modal from "@/components/ui/Modal";
 import { InputField, SelectField, TextareaField } from "@/components/ui/FormField";
+import CopyButton from "@/components/ui/CopyButton";
 
 const accountTypePill: Record<string, string> = {
   VIP:      "bg-purple-50 text-purple-700",
@@ -111,18 +112,22 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
                     )}
                   </div>
                 </div>
-                <p className="text-label-caps text-purple-600 mb-4">{customer.clientId}</p>
+                <div className="flex items-center gap-1.5 mb-4 group/id">
+                  <p className="text-label-caps text-purple-600">{customer.clientId}</p>
+                  <CopyButton text={customer.clientId} size={11} />
+                </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { icon: Mail,     value: customer.email },
-                    { icon: Phone,    value: customer.phone },
-                    { icon: Globe,    value: customer.country },
-                    { icon: Calendar, value: `Member since ${customer.createdAt}` },
-                  ].map(({ icon: Icon, value }) => (
-                    <div key={value} className="flex items-center gap-2">
+                    { icon: Mail,     value: customer.email,                      copyable: true  },
+                    { icon: Phone,    value: customer.phone,                      copyable: true  },
+                    { icon: Globe,    value: customer.country,                    copyable: false },
+                    { icon: Calendar, value: `Member since ${customer.createdAt}`, copyable: false },
+                  ].map(({ icon: Icon, value, copyable }) => (
+                    <div key={value} className="group flex items-center gap-2">
                       <Icon size={13} className="text-[#48484a] flex-shrink-0" />
                       <span className="text-sm text-[#48484a]">{value}</span>
+                      {copyable && <CopyButton text={value} size={11} />}
                     </div>
                   ))}
                 </div>

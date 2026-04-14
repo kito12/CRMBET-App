@@ -4,13 +4,17 @@ import { useState, useEffect } from "react";
 import { tickets as seedTickets, customers } from "@/lib/data";
 import type { Ticket, TicketPriority, TicketStatus } from "@/lib/data";
 import { StatusPill, PriorityPill } from "@/components/ui/StatusPill";
-import { Search, Plus, SlidersHorizontal, Link2, Download, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Plus, SlidersHorizontal, Link2, Download, ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
+import CopyButton from "@/components/ui/CopyButton";
 import Modal from "@/components/ui/Modal";
 import { InputField, SelectField, TextareaField } from "@/components/ui/FormField";
 import TicketDetailModal from "@/components/tickets/TicketDetailModal";
 
 const statusFilters = ["All", "Open", "In Progress", "Resolved", "On Hold"] as const;
 const agents = ["Unassigned", "Sarah K.", "James R.", "Tom H.", "Mia S.", "Daniel P.", "Omar K.", "Yuki T."];
+const CURRENT_AGENT = "Sarah K."; // would come from auth in production
+const agentViews = ["All", "Mine", "Unassigned"] as const;
+type AgentView = typeof agentViews[number];
 const ITEMS_PER_PAGE = 10;
 
 const emptyForm = {
@@ -44,6 +48,7 @@ export default function TicketsPage() {
   const [errors, setErrors] = useState<Partial<typeof emptyForm>>({});
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [page, setPage] = useState(1);
+  const [agentView, setAgentView] = useState<AgentView>("All");
 
   // Pre-fill from ?clientId= query param
   useEffect(() => {
@@ -60,7 +65,7 @@ export default function TicketsPage() {
   }, []);
 
   // Reset page when filter/search changes
-  useEffect(() => { setPage(1); }, [search, activeFilter]);
+  useEffect(() => { setPage(1); }, [search, activeFilter, agentView]);
 
   function handleClientIdChange(val: string) {
     const match = customers.find(c => c.clientId.toLowerCase() === val.toLowerCase());
@@ -77,9 +82,18 @@ export default function TicketsPage() {
       t.id.toLowerCase().includes(search.toLowerCase()) ||
       t.clientId.toLowerCase().includes(search.toLowerCase()) ||
       t.issue.toLowerCase().includes(search.toLowerCase());
-    const matchesFilter = activeFilter === "All" || t.status === activeFilter;
-    return matchesSearch && matchesFilter;
+    const matchesStatus = activeFilter === "All" || t.status === activeFilter;
+    const matchesAgent =
+      agentView === "All" ? true :
+      agentView === "Mine" ? t.agent === CURRENT_AGENT :
+      t.agent === "Unassigned";
+    return matchesSearch && matchesStatus && matchesAgent;
   });
+
+  function quickResolve(e: React.MouseEvent, ticketId: string) {
+    e.stopPropagation();
+    setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: "Resolved" as TicketStatus } : t));
+  }
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
@@ -156,17 +170,30 @@ export default function TicketsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-4 mb-6">
-        <div className="relative flex-1 max-w-xs">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#48484a]" />
-          <input type="text" placeholder="Search tickets, client ID..." value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm text-[#1a1c1c] placeholder:text-[#48484a] outline-none focus:ring-2 focus:ring-purple-200 transition-all"
-            style={{ background: "var(--surface-low)" }}
-            onFocus={(e) => (e.target.style.background = "var(--surface-lowest)")}
-            onBlur={(e) => (e.target.style.background = "var(--surface-low)")} />
+      <div className="flex flex-col gap-3 mb-6">
+        {/* Row 1: search + agent view tabs */}
+        <div className="flex items-center gap-3">
+          <div className="relative max-w-xs w-full">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#48484a]" />
+            <input type="text" placeholder="Search tickets, client ID..." value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm text-[#1a1c1c] placeholder:text-[#48484a] outline-none focus:ring-2 focus:ring-purple-200 transition-all"
+              style={{ background: "var(--surface-low)" }}
+              onFocus={(e) => (e.target.style.background = "var(--surface-lowest)")}
+              onBlur={(e) => (e.target.style.background = "var(--surface-low)")} />
+          </div>
+          {/* Agent view tabs */}
+          <div className="flex items-center rounded-xl overflow-hidden" style={{ background: "var(--surface-low)" }}>
+            {agentViews.map(v => (
+              <button key={v} onClick={() => setAgentView(v)}
+                className={`px-4 py-2 text-sm font-medium transition-all duration-150 ${agentView === v ? "gradient-primary text-white" : "text-[#48484a] hover:text-[#1a1c1c]"}`}>
+                {v === "Mine" ? `My Tickets` : v === "Unassigned" ? "Unassigned" : "All Tickets"}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex gap-2">
+        {/* Row 2: status filters */}
+        <div className="flex items-center gap-2">
           {statusFilters.map(f => (
             <button key={f} onClick={() => setActiveFilter(f)}
               className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-all duration-150 ${activeFilter === f ? "gradient-primary text-white shadow-float" : "text-[#48484a] hover:bg-[#f3f3f3]"}`}
@@ -174,17 +201,14 @@ export default function TicketsPage() {
               {f}
             </button>
           ))}
+          <span className="ml-2 text-xs text-[#48484a]">{filtered.length} ticket{filtered.length !== 1 ? "s" : ""}</span>
         </div>
-        <button className="ml-auto flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium text-[#48484a]"
-          style={{ background: "var(--surface-lowest)" }}>
-          <SlidersHorizontal size={14} /> Filter
-        </button>
       </div>
 
       {/* Table */}
       <div className="rounded-2xl overflow-hidden" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
-        <div className="grid grid-cols-[0.7fr_0.8fr_1.3fr_1.1fr_0.9fr_0.8fr_0.8fr_0.8fr_0.9fr] gap-3 px-6 py-3" style={{ background: "var(--surface-low)" }}>
-          {["TICKET","CLIENT ID","CUSTOMER","PHONE","ISSUE TYPE","PRIORITY","STATUS","AGENT","CREATED"].map(h => (
+        <div className="grid grid-cols-[0.7fr_0.8fr_1.3fr_1.1fr_0.9fr_0.8fr_0.8fr_0.8fr_0.9fr_36px] gap-3 px-6 py-3" style={{ background: "var(--surface-low)" }}>
+          {["TICKET","CLIENT ID","CUSTOMER","PHONE","ISSUE TYPE","PRIORITY","STATUS","AGENT","CREATED",""].map(h => (
             <span key={h} className="text-label-caps text-[#48484a]">{h}</span>
           ))}
         </div>
@@ -194,22 +218,32 @@ export default function TicketsPage() {
             <div className="py-16 text-center text-[#48484a] text-sm">No tickets match your search.</div>
           ) : paginated.map(ticket => (
             <div key={ticket.id}
-              className="grid grid-cols-[0.7fr_0.8fr_1.3fr_1.1fr_0.9fr_0.8fr_0.8fr_0.8fr_0.9fr] gap-3 items-center px-3 py-3.5 rounded-xl cursor-pointer transition-all duration-150"
+              className="group grid grid-cols-[0.7fr_0.8fr_1.3fr_1.1fr_0.9fr_0.8fr_0.8fr_0.8fr_0.9fr_36px] gap-3 items-center px-3 py-3.5 rounded-xl cursor-pointer transition-all duration-150"
               style={{ background: "transparent" }}
               onClick={() => setSelectedTicket(ticket)}
               onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-low)")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
-              <div className="flex items-center gap-1">
-                <span className="text-sm font-medium text-purple-600">{ticket.id}</span>
+              <div className="flex items-center gap-1 min-w-0">
+                <span className="text-sm font-medium text-purple-600 truncate">{ticket.id}</span>
                 {ticket.headOfficeUrl && <Link2 size={11} className="text-[#48484a] flex-shrink-0" />}
+                <CopyButton text={ticket.id} />
               </div>
-              <span className="text-xs font-medium text-[#0058bf]">{ticket.clientId}</span>
+              <div className="flex items-center gap-1 min-w-0">
+                <span className="text-xs font-medium text-[#0058bf] truncate">{ticket.clientId}</span>
+                <CopyButton text={ticket.clientId} />
+              </div>
               <div>
                 <p className="text-sm font-medium text-[#1a1c1c]">{ticket.customer}</p>
-                <p className="text-xs text-[#48484a]">{ticket.email}</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-xs text-[#48484a] truncate">{ticket.email}</p>
+                  <CopyButton text={ticket.email} />
+                </div>
               </div>
-              <span className="text-xs text-[#48484a] whitespace-nowrap">{ticket.phone}</span>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-[#48484a] whitespace-nowrap">{ticket.phone}</span>
+                <CopyButton text={ticket.phone} />
+              </div>
               <span className="text-sm text-[#48484a]">{ticket.issue}</span>
               <PriorityPill priority={ticket.priority} />
               <StatusPill status={ticket.status} />
@@ -217,6 +251,20 @@ export default function TicketsPage() {
               <div className="flex items-center gap-1.5">
                 <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getSLADotClass(ticket.created, ticket.status)}`} />
                 <span className="text-xs text-[#48484a]">{ticket.created}</span>
+              </div>
+              {/* Quick resolve */}
+              <div className="flex items-center justify-center">
+                {ticket.status !== "Resolved" ? (
+                  <button
+                    onClick={(e) => quickResolve(e, ticket.id)}
+                    title="Quick resolve"
+                    className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 transition-all duration-150"
+                  >
+                    <CheckCircle2 size={16} />
+                  </button>
+                ) : (
+                  <CheckCircle2 size={16} className="text-emerald-500 opacity-40" />
+                )}
               </div>
             </div>
           ))}
