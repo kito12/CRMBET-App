@@ -58,8 +58,9 @@ function formatDuration(ms: number): string {
 function formatJoined(iso: string): string {
   try {
     const d = new Date(iso);
+    if (isNaN(d.getTime())) return "Unknown";
     return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-  } catch { return iso; }
+  } catch { return "Unknown"; }
 }
 
 export default function UsersPage() {
@@ -677,11 +678,16 @@ export default function UsersPage() {
                       {selectedPerf.recentTickets.map(t => (
                         <div key={t.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
                           style={{ background: "var(--surface-low)" }}>
-                          <Hash size={11} className="text-purple-500 flex-shrink-0" />
-                          <span className="text-xs font-semibold text-purple-600 w-20 flex-shrink-0">{t.id}</span>
-                          <span className="text-xs flex-1 truncate" style={{ color: "var(--on-surface)" }}>{t.issue}</span>
-                          <StatusPill status={t.status} />
-                          <PriorityPill priority={t.priority} />
+                          {/* Left: ID stacked above issue — avoids overflow into text */}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-bold text-purple-600 truncate">{t.id}</p>
+                            <p className="text-xs truncate mt-0.5" style={{ color: "var(--on-surface)" }}>{t.issue}</p>
+                          </div>
+                          {/* Right: pills always shrink to fit */}
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <StatusPill status={t.status} />
+                            <PriorityPill priority={t.priority} />
+                          </div>
                         </div>
                       ))}
                     </div>
