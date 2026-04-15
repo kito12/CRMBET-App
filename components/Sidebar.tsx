@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Ticket, Users, UserCircle, Settings, Zap,
-  Moon, Sun, Search, MessageSquare, Bell, BarChart2,
+  Moon, Sun, Search, MessageSquare, Bell, BarChart2, MoreHorizontal, X, ChevronRight,
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { useCommandPalette } from "./CommandPaletteProvider";
@@ -22,12 +22,28 @@ const navItems = [
   { href: "/settings",  icon: Settings,        label: "Settings" },
 ];
 
+// Items shown in the bottom bar on mobile
+const mobileNavItems = [
+  { href: "/",         icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/tickets",  icon: Ticket,          label: "Tickets" },
+  { href: "/messages", icon: MessageSquare,   label: "Messages" },
+];
+
+// Items shown inside the "More" sheet
+const moreItems = [
+  { href: "/customers", icon: UserCircle, label: "Customers" },
+  { href: "/analytics", icon: BarChart2,  label: "Analytics" },
+  { href: "/users",     icon: Users,      label: "Support Team" },
+  { href: "/settings",  icon: Settings,   label: "Settings" },
+];
+
 export default function Sidebar() {
   const pathname = usePathname();
   const { theme, toggle } = useTheme();
   const { open: openPalette } = useCommandPalette();
   const { tickets, unreadCount } = useData();
   const [notifOpen, setNotifOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const openTicketCount = tickets.filter(t => t.status === "Open").length;
 
@@ -97,39 +113,40 @@ export default function Sidebar() {
           style={{ background: "linear-gradient(135deg, #7131d6, #0058bf)" }}>JD</div>
       </aside>
 
-      {/* ── Mobile bottom nav ── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around px-1 py-2"
-        style={{ background: "var(--surface-lowest)", borderTop: "1px solid rgba(204,195,215,0.15)" }}>
-        {navItems.map(({ href, icon: Icon, label }) => {
+      {/* ── Mobile bottom nav (5 items max) ── */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around px-2 py-2"
+        style={{ background: "var(--surface-lowest)", borderTop: "1px solid rgba(148,163,184,0.12)" }}>
+
+        {/* Core nav items */}
+        {mobileNavItems.map(({ href, icon: Icon, label }) => {
           const active     = pathname === href || (href !== "/" && pathname.startsWith(href));
           const isTickets  = href === "/tickets";
           const isMessages = href === "/messages";
           return (
             <Link key={href} href={href}
-              className={`relative flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl transition-all duration-200 min-w-0
+              className={`relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors duration-150 min-w-0
                 ${active ? "text-purple-600" : "text-[#48484a]"}`}>
               <div className="relative">
-                <Icon size={20} />
+                <Icon size={22} />
                 {isTickets && openTicketCount > 0 && !active && (
-                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full gradient-primary text-white text-[8px] font-bold flex items-center justify-center">{openTicketCount}</span>
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full gradient-primary text-white text-[9px] font-bold flex items-center justify-center">{openTicketCount}</span>
                 )}
                 {isMessages && !active && (
-                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-pink-500 text-white text-[8px] font-bold flex items-center justify-center">2</span>
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-pink-500 text-white text-[9px] font-bold flex items-center justify-center">2</span>
                 )}
               </div>
-              <span className={`text-[10px] font-medium truncate ${active ? "text-purple-600" : "text-[#48484a]"}`}>
-                {label === "Support Team" ? "Team" : label}
-              </span>
+              <span className={`text-[10px] font-medium ${active ? "text-purple-600" : "text-[#48484a]"}`}>{label}</span>
             </Link>
           );
         })}
-        {/* Bell for mobile */}
+
+        {/* Bell */}
         <button onClick={() => setNotifOpen(v => !v)}
-          className="relative flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl text-[#48484a]">
+          className="relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl text-[#48484a]">
           <div className="relative">
-            <Bell size={20} />
+            <Bell size={22} />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
@@ -137,13 +154,83 @@ export default function Sidebar() {
           <span className="text-[10px] font-medium">Alerts</span>
         </button>
 
-        {/* Theme toggle for mobile */}
-        <button onClick={toggle}
-          className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl text-[#48484a]">
-          {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
-          <span className="text-[10px] font-medium">{theme === "dark" ? "Light" : "Dark"}</span>
+        {/* More */}
+        <button onClick={() => setMoreOpen(true)}
+          className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors duration-150
+            ${moreItems.some(i => pathname.startsWith(i.href)) ? "text-purple-600" : "text-[#48484a]"}`}>
+          <MoreHorizontal size={22} />
+          <span className="text-[10px] font-medium">More</span>
         </button>
       </nav>
+
+      {/* ── "More" slide-up sheet ── */}
+      {/* Backdrop */}
+      {moreOpen && (
+        <div className="md:hidden fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
+          onClick={() => setMoreOpen(false)} />
+      )}
+
+      {/* Sheet */}
+      <div className={`md:hidden fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl transition-transform duration-300 ease-out
+        ${moreOpen ? "translate-y-0" : "translate-y-full"}`}
+        style={{ background: "var(--surface-lowest)", boxShadow: "0 -8px 40px rgba(0,0,0,0.18)" }}>
+
+        {/* Handle + header */}
+        <div className="flex items-center justify-between px-5 pt-4 pb-2">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white"
+              style={{ background: "linear-gradient(135deg, #7131d6, #0058bf)" }}>JD</div>
+            <div>
+              <p className="text-sm font-semibold" style={{ color: "var(--on-surface)" }}>John Doe</p>
+              <p className="text-xs" style={{ color: "var(--on-surface-variant)" }}>Support Agent</p>
+            </div>
+          </div>
+          <button onClick={() => setMoreOpen(false)}
+            className="w-8 h-8 flex items-center justify-center rounded-full"
+            style={{ background: "var(--surface-low)", color: "var(--on-surface-variant)" }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Theme toggle row */}
+        <div className="mx-4 my-2 rounded-xl px-4 py-3 flex items-center justify-between"
+          style={{ background: "var(--surface-low)" }}>
+          <div className="flex items-center gap-3" style={{ color: "var(--on-surface)" }}>
+            {theme === "dark" ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} className="text-purple-500" />}
+            <span className="text-sm font-medium">{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+          </div>
+          {/* Toggle switch */}
+          <button onClick={toggle}
+            className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${theme === "dark" ? "bg-purple-600" : "bg-slate-300"}`}>
+            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200
+              ${theme === "dark" ? "translate-x-5" : "translate-x-0.5"}`} />
+          </button>
+        </div>
+
+        {/* More nav items */}
+        <div className="mx-4 mb-4 mt-2 rounded-xl overflow-hidden" style={{ background: "var(--surface-low)" }}>
+          {moreItems.map(({ href, icon: Icon, label }, i) => {
+            const active = pathname === href || pathname.startsWith(href);
+            return (
+              <Link key={href} href={href} onClick={() => setMoreOpen(false)}
+                className={`flex items-center gap-3 px-4 py-3.5 transition-colors duration-150
+                  ${i < moreItems.length - 1 ? "border-b" : ""}
+                  ${active ? "text-purple-600" : ""}`}
+                style={{
+                  color: active ? undefined : "var(--on-surface)",
+                  borderColor: "rgba(148,163,184,0.1)",
+                }}>
+                <Icon size={18} style={{ color: active ? undefined : "var(--on-surface-variant)" }} />
+                <span className="text-sm font-medium flex-1">{label}</span>
+                <ChevronRight size={15} style={{ color: "var(--on-surface-variant)" }} />
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* Safe area spacer */}
+        <div className="h-6" />
+      </div>
 
       {/* Notification panel */}
       <NotificationPanel open={notifOpen} onClose={() => setNotifOpen(false)} />
