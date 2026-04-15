@@ -24,7 +24,7 @@ const statusDot: Record<string, string> = {
 const ITEMS_PER_PAGE = 8;
 
 const defaultForm = {
-  name: "", email: "", phone: "", country: "",
+  clientId: "", name: "", email: "", phone: "", country: "",
   accountType: "Standard" as AccountType,
   status: "Active" as CustomerStatus,
 };
@@ -35,14 +35,19 @@ export default function CustomersPage() {
   const [page, setPage] = useState(1);
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState(defaultForm);
+  const [clientIdError, setClientIdError] = useState("");
 
   useEffect(() => { setPage(1); }, [search]);
 
   function handleAddCustomer(e: React.FormEvent) {
     e.preventDefault();
-    const maxId = Math.max(...customers.map(c => parseInt(c.clientId.replace("CLT-", ""))));
+    const trimmedId = form.clientId.trim().toUpperCase();
+    if (customers.some(c => c.clientId === trimmedId)) {
+      setClientIdError("This Client ID already exists.");
+      return;
+    }
     const newCustomer: Customer = {
-      clientId: `CLT-${maxId + 1}`,
+      clientId: trimmedId,
       name: form.name,
       email: form.email,
       phone: form.phone,
@@ -54,6 +59,7 @@ export default function CustomersPage() {
     setCustomers(prev => [newCustomer, ...prev]);
     setAddOpen(false);
     setForm(defaultForm);
+    setClientIdError("");
   }
 
   function exportCSV() {
@@ -254,8 +260,21 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add Customer" subtitle="Create a new client account">
+      <Modal open={addOpen} onClose={() => { setAddOpen(false); setClientIdError(""); setForm(defaultForm); }} title="Add Customer" subtitle="Create a new client account">
         <form onSubmit={handleAddCustomer} className="flex flex-col gap-4">
+          {/* Client ID — manually entered from the betting platform */}
+          <div>
+            <InputField
+              label="Client ID"
+              placeholder="e.g. CLT-1042"
+              value={form.clientId}
+              onChange={(e) => { setForm({ ...form, clientId: e.target.value }); setClientIdError(""); }}
+              required
+            />
+            {clientIdError && (
+              <p className="text-xs text-red-500 mt-1">{clientIdError}</p>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <InputField label="Full Name" placeholder="John Smith" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
             <InputField label="Email" type="email" placeholder="john@email.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
@@ -276,7 +295,7 @@ export default function CustomersPage() {
             <button type="button" onClick={() => setAddOpen(false)}
               className="flex-1 py-2.5 rounded-xl text-sm font-medium text-[#48484a]"
               style={{ background: "var(--surface-low)" }}>Cancel</button>
-            <button type="submit" disabled={!form.name || !form.email || !form.phone || !form.country}
+            <button type="submit" disabled={!form.clientId.trim() || !form.name || !form.email || !form.phone || !form.country}
               className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white gradient-primary hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed">
               Create Customer
             </button>
