@@ -319,9 +319,9 @@ export default function DataProvider({ children }: { children: React.ReactNode }
           if (escalRef.current.enabled && ageHours >= escalRef.current.thresholdHours && !t.escalated) {
             changed = true;
             const escalatedTo = escalRef.current.tier2Agent;
-            // Only reassign if the ticket is currently unassigned — never pull a ticket
-            // away from an agent who is already working it.
-            const alreadyAssigned = t.agent !== "Unassigned";
+            // Never reassign if a human explicitly set the agent (manualAgent flag),
+            // and only hand off to tier-2 if still unassigned.
+            const alreadyAssigned = t.agent !== "Unassigned" || t.manualAgent === true;
             const newAgent = alreadyAssigned ? t.agent : escalatedTo;
             const noteText = alreadyAssigned
               ? `Escalated flag set after ${escalRef.current.thresholdHours}h — ticket remains with ${t.agent}.`
@@ -412,8 +412,8 @@ export default function DataProvider({ children }: { children: React.ReactNode }
             // Execute actions
             for (const action of rule.actions) {
               if (action.type === "assign_agent") {
-                // Data-level guard: if already assigned by another session, mark fired and skip
-                if (ticket.agent !== "Unassigned") { firedAutomations.current.add(firedKey); continue; }
+                // Data-level guard: skip if already assigned OR if a human explicitly set the agent
+                if (ticket.agent !== "Unassigned" || ticket.manualAgent) { firedAutomations.current.add(firedKey); continue; }
                 if (firedAutomations.current.has(firedKey)) continue;
                 let assignTo = action.value;
                 if (assignTo === "round_robin") {

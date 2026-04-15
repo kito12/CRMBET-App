@@ -54,6 +54,7 @@ export interface Ticket {
   resolvedAt?: string;      // ISO 8601 — set when status first changes to Resolved
   firstRepliedAt?: string;  // ISO 8601 — set when status first moves out of "Open"
   source?: "web_form" | "agent";
+  manualAgent?: boolean;    // true once a human explicitly saves an agent — blocks automation reassignment
   auditLog?: AuditEntry[];
 }
 
