@@ -2,6 +2,7 @@ export type TicketStatus = "Open" | "In Progress" | "Resolved" | "On Hold";
 export type TicketPriority = "High" | "Medium" | "Low";
 export type AccountType = "Standard" | "Premium" | "VIP";
 export type CustomerStatus = "Active" | "Suspended" | "Inactive";
+export type NotificationType = "assigned" | "sla_breach" | "escalated" | "new_ticket" | "status_change";
 
 export interface Customer {
   clientId: string;
@@ -35,7 +36,86 @@ export interface Ticket {
   description?: string;
   headOfficeUrl?: string;
   notes?: Note[];
+  escalated?: boolean;
+  escalatedAt?: string;
+  escalatedTo?: string;
 }
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType;
+  ticketId: string;
+  message: string;
+  timestamp: string;
+  read: boolean;
+}
+
+export interface CannedResponse {
+  id: string;
+  title: string;
+  category: string;
+  body: string;
+}
+
+export interface EscalationSettings {
+  enabled: boolean;
+  thresholdHours: number;
+  tier2Agent: string;
+  headOfficeUrl: string;
+}
+
+export const defaultEscalationSettings: EscalationSettings = {
+  enabled: true,
+  thresholdHours: 4,
+  tier2Agent: "James R.",
+  headOfficeUrl: "",
+};
+
+export const seedNotifications: AppNotification[] = [
+  { id: "n1", type: "assigned",   ticketId: "TKT-1042", message: "TKT-1042 assigned to you by Tom H.",          timestamp: "09:14", read: false },
+  { id: "n2", type: "sla_breach", ticketId: "TKT-1040", message: "TKT-1040 has breached SLA — unassigned 2h+",  timestamp: "08:50", read: false },
+  { id: "n3", type: "new_ticket", ticketId: "TKT-1034", message: "New high-priority ticket from Ahmed Al-Rashid",timestamp: "08:10", read: true  },
+  { id: "n4", type: "escalated",  ticketId: "TKT-1039", message: "TKT-1039 escalated to Tier 2 by Tom H.",      timestamp: "Yesterday", read: true },
+];
+
+export const seedCannedResponses: CannedResponse[] = [
+  {
+    id: "cr1",
+    title: "Withdrawal Hold – KYC Required",
+    category: "Withdrawal",
+    body: "Hi {{customer_name}}, thank you for reaching out. Your withdrawal is currently on hold as we need to verify your identity. Please submit a valid government-issued ID and proof of address to complete the KYC process. Once verified, your withdrawal will be processed within 24–48 hours.",
+  },
+  {
+    id: "cr2",
+    title: "Bet Settlement Dispute",
+    category: "Bet Settlement",
+    body: "Hi {{customer_name}}, we've reviewed your query regarding the bet settlement on your account. Settlements are processed based on official results from our data provider. If you believe there has been an error, please provide the bet ID and event details so our team can investigate further.",
+  },
+  {
+    id: "cr3",
+    title: "Account Access – Password Reset",
+    category: "Account Access",
+    body: "Hi {{customer_name}}, we're sorry to hear you're having trouble accessing your account. Please use the 'Forgot Password' link on the login page to reset your credentials. If the issue persists, our team can manually verify your identity and restore access within 1 business day.",
+  },
+  {
+    id: "cr4",
+    title: "Bonus Terms Clarification",
+    category: "Bonus Dispute",
+    body: "Hi {{customer_name}}, thank you for your message regarding your bonus. Bonuses are subject to our standard wagering requirements of 5x the bonus amount before withdrawal. You can track your progress in the 'Promotions' section of your account. Let us know if you have any further questions.",
+  },
+  {
+    id: "cr5",
+    title: "Live Betting Technical Issue",
+    category: "Live Betting",
+    body: "Hi {{customer_name}}, we're aware of intermittent issues with our live betting platform and apologise for the inconvenience. Our technical team is working on a fix. In the meantime, please try clearing your browser cache or using our mobile app. We'll notify you once the issue is resolved.",
+  },
+  {
+    id: "cr6",
+    title: "Standard Acknowledgment",
+    category: "General",
+    body: "Hi {{customer_name}}, thank you for contacting our support team. We've received your request and a member of our team will be in touch within 2–4 hours. Your reference number is {{ticket_id}}. We apologise for any inconvenience caused.",
+  },
+];
 
 export const customers: Customer[] = [
   { clientId: "CLT-10042", name: "Marcus Webb",      email: "m.webb@email.com",  phone: "+1 555 012 3456",  accountType: "VIP",      status: "Active",    country: "United States", createdAt: "Jan 12, 2024" },
