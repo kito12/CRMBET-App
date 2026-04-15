@@ -1,0 +1,282 @@
+"use client";
+
+import { useData } from "@/components/DataProvider";
+import { Ticket, CheckCircle2, AlertCircle, TrendingUp, Users, Clock } from "lucide-react";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function pct(part: number, total: number) {
+  return total === 0 ? 0 : Math.round((part / total) * 100);
+}
+
+// Bar component for horizontal charts
+function HBar({ label, value, max, color = "bg-purple-500", suffix = "" }: {
+  label: string; value: number; max: number; color?: string; suffix?: string;
+}) {
+  const width = max === 0 ? 0 : Math.round((value / max) * 100);
+  return (
+    <div className="mb-3">
+      <div className="flex justify-between items-center mb-1">
+        <span className="text-sm text-[#1a1c1c]">{label}</span>
+        <span className="text-xs font-semibold text-[#48484a]">{value}{suffix}</span>
+      </div>
+      <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--surface-low)" }}>
+        <div className={`h-2 rounded-full ${color} transition-all duration-500`} style={{ width: `${width}%` }} />
+      </div>
+    </div>
+  );
+}
+
+// Mini donut using SVG
+function DonutChart({ slices }: { slices: { value: number; color: string; label: string }[] }) {
+  const total = slices.reduce((s, x) => s + x.value, 0);
+  if (total === 0) return null;
+  const r = 36;
+  const cx = 44;
+  const cy = 44;
+  const circumference = 2 * Math.PI * r;
+  let cumulative = 0;
+
+  return (
+    <div className="flex items-center gap-6">
+      <svg width="88" height="88" viewBox="0 0 88 88" className="flex-shrink-0">
+        {slices.map((slice, i) => {
+          const fraction = slice.value / total;
+          const strokeDasharray = `${fraction * circumference} ${circumference}`;
+          const rotation = -90 + (cumulative / total) * 360;
+          cumulative += slice.value;
+          return (
+            <circle key={i} cx={cx} cy={cy} r={r} fill="none"
+              stroke={slice.color} strokeWidth="14"
+              strokeDasharray={strokeDasharray}
+              strokeDashoffset={0}
+              transform={`rotate(${rotation} ${cx} ${cy})`}
+              style={{ transition: "stroke-dasharray 0.5s ease" }}
+            />
+          );
+        })}
+        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central"
+          className="text-xs font-bold" fill="currentColor" fontSize="13" fontWeight="700">
+          {total}
+        </text>
+      </svg>
+      <div className="flex flex-col gap-1.5">
+        {slices.map((s, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: s.color }} />
+            <span className="text-xs text-[#48484a]">{s.label}</span>
+            <span className="text-xs font-semibold text-[#1a1c1c] ml-auto pl-2">{pct(s.value, total)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+export default function AnalyticsPage() {
+  const { tickets, customers } = useData();
+
+  const total      = tickets.length;
+  const open       = tickets.filter(t => t.status === "Open").length;
+  const inProgress = tickets.filter(t => t.status === "In Progress").length;
+  const resolved   = tickets.filter(t => t.status === "Resolved").length;
+  const onHold     = tickets.filter(t => t.status === "On Hold").length;
+  const active     = open + inProgress;
+  const resRate    = pct(resolved, total);
+
+  // ── Issue type breakdown ──
+  const issueTypes = ["Withdrawal Issue", "Bet Settlement", "Account Access", "Bonus Dispute", "Live Betting"];
+  const issueCounts = issueTypes.map(i => ({ label: i, count: tickets.filter(t => t.issue === i).length }))
+    .sort((a, b) => b.count - a.count);
+  const maxIssue = Math.max(...issueCounts.map(x => x.count), 1);
+
+  // ── Priority breakdown ──
+  const prioritySlices = [
+    { label: "High",   value: tickets.filter(t => t.priority === "High").length,   color: "#ef4444" },
+    { label: "Medium", value: tickets.filter(t => t.priority === "Medium").length, color: "#f59e0b" },
+    { label: "Low",    value: tickets.filter(t => t.priority === "Low").length,    color: "#22c55e" },
+  ];
+
+  // ── Status breakdown ──
+  const statusSlices = [
+    { label: "Open",        value: open,       color: "#7131d6" },
+    { label: "In Progress", value: inProgress, color: "#0058bf" },
+    { label: "Resolved",    value: resolved,   color: "#22c55e" },
+    { label: "On Hold",     value: onHold,     color: "#f59e0b" },
+  ].filter(s => s.value > 0);
+
+  // ── Agent leaderboard ──
+  const agentNames = Array.from(new Set(tickets.map(t => t.agent))).filter(a => a !== "Unassigned");
+  const agentStats = agentNames.map(agent => ({
+    name: agent,
+    total:    tickets.filter(t => t.agent === agent).length,
+    resolved: tickets.filter(t => t.agent === agent && t.status === "Resolved").length,
+    open:     tickets.filter(t => t.agent === agent && (t.status === "Open" || t.status === "In Progress")).length,
+  })).sort((a, b) => b.total - a.total);
+  const maxAgent = Math.max(...agentStats.map(a => a.total), 1);
+
+  // ── Customer tier breakdown ──
+  const tierColors: Record<string, string> = { VIP: "bg-purple-500", Premium: "bg-blue-500", Standard: "bg-slate-400" };
+  const tierStats = (["VIP", "Premium", "Standard"] as const).map(tier => ({
+    label: tier,
+    customers: customers.filter(c => c.accountType === tier).length,
+    tickets:   tickets.filter(t => {
+      const c = customers.find(cu => cu.clientId === t.clientId);
+      return c?.accountType === tier;
+    }).length,
+    color: tierColors[tier],
+  }));
+  const maxTierTickets = Math.max(...tierStats.map(t => t.tickets), 1);
+
+  return (
+    <div className="max-w-[1400px] mx-auto">
+      {/* Header */}
+      <div className="mb-8">
+        <p className="text-label-caps text-[#48484a] mb-1">Insights</p>
+        <h1 className="text-display text-[#1a1c1c]">Analytics</h1>
+        <p className="text-sm text-[#48484a] mt-1">Support performance at a glance</p>
+      </div>
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {[
+          { icon: Ticket,       label: "TOTAL TICKETS",    value: total,          sub: "all time",              color: "text-purple-600",  bg: "bg-purple-50" },
+          { icon: AlertCircle,  label: "ACTIVE",           value: active,         sub: "open + in progress",    color: "text-amber-600",   bg: "bg-amber-50" },
+          { icon: CheckCircle2, label: "RESOLVED",         value: resolved,       sub: "tickets closed",        color: "text-emerald-600", bg: "bg-emerald-50" },
+          { icon: TrendingUp,   label: "RESOLUTION RATE",  value: `${resRate}%`,  sub: "resolved / total",      color: "text-blue-600",    bg: "bg-blue-50" },
+        ].map(({ icon: Icon, label, value, sub, color, bg }) => (
+          <div key={label} className="rounded-2xl p-5" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
+            <div className={`inline-flex p-2 rounded-lg ${bg} mb-3`}>
+              <Icon size={16} className={color} />
+            </div>
+            <p className="text-label-caps text-[#48484a] mb-1">{label}</p>
+            <p className="text-2xl font-bold text-[#1a1c1c] tracking-tight">{value}</p>
+            <p className="text-xs text-[#48484a] mt-1">{sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Middle row: issue types + priority + status */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
+
+        {/* Issue types — 3 cols */}
+        <div className="lg:col-span-3 rounded-2xl p-6" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
+          <p className="text-label-caps text-[#48484a] mb-1">Volume</p>
+          <h3 className="text-base font-semibold text-[#1a1c1c] tracking-tight mb-5">Tickets by Issue Type</h3>
+          {issueCounts.map(({ label, count }, i) => (
+            <HBar key={label} label={label} value={count} max={maxIssue}
+              color={["bg-purple-500","bg-blue-500","bg-indigo-400","bg-violet-400","bg-purple-300"][i % 5]} />
+          ))}
+        </div>
+
+        {/* Priority + Status donuts — 2 cols */}
+        <div className="lg:col-span-2 flex flex-col gap-5">
+          <div className="rounded-2xl p-6 flex-1" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
+            <p className="text-label-caps text-[#48484a] mb-1">Distribution</p>
+            <h3 className="text-base font-semibold text-[#1a1c1c] tracking-tight mb-4">By Priority</h3>
+            <DonutChart slices={prioritySlices} />
+          </div>
+          <div className="rounded-2xl p-6 flex-1" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
+            <p className="text-label-caps text-[#48484a] mb-1">Distribution</p>
+            <h3 className="text-base font-semibold text-[#1a1c1c] tracking-tight mb-4">By Status</h3>
+            <DonutChart slices={statusSlices} />
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom row: agent leaderboard + customer tiers */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+
+        {/* Agent leaderboard — 3 cols */}
+        <div className="lg:col-span-3 rounded-2xl p-6" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
+          <div className="flex items-center gap-2 mb-5">
+            <p className="text-label-caps text-[#48484a] flex-1">Performance</p>
+          </div>
+          <h3 className="text-base font-semibold text-[#1a1c1c] tracking-tight -mt-3 mb-5">Agent Leaderboard</h3>
+
+          {/* Header */}
+          <div className="grid grid-cols-[1.8fr_0.7fr_0.7fr_0.7fr_1.2fr] gap-3 px-3 mb-2">
+            {["AGENT", "TOTAL", "ACTIVE", "DONE", "WORKLOAD"].map(h => (
+              <span key={h} className="text-label-caps text-[#48484a]">{h}</span>
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-1">
+            {agentStats.map((agent, rank) => {
+              const initials = agent.name.split(" ").map((n: string) => n[0]).join("").toUpperCase();
+              const barW = Math.round((agent.total / maxAgent) * 100);
+              return (
+                <div key={agent.name}
+                  className="grid grid-cols-[1.8fr_0.7fr_0.7fr_0.7fr_1.2fr] gap-3 items-center px-3 py-2.5 rounded-xl"
+                  style={{ background: "var(--surface-low)" }}>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="text-xs font-bold text-[#48484a] w-4 flex-shrink-0">#{rank + 1}</span>
+                    <div className="w-7 h-7 rounded-lg gradient-primary flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0">
+                      {initials}
+                    </div>
+                    <span className="text-sm font-medium text-[#1a1c1c] truncate">{agent.name}</span>
+                  </div>
+                  <span className="text-sm font-bold text-[#1a1c1c]">{agent.total}</span>
+                  <span className="text-sm text-amber-600 font-medium">{agent.open}</span>
+                  <span className="text-sm text-emerald-600 font-medium">{agent.resolved}</span>
+                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--surface-lowest)" }}>
+                    <div className="h-1.5 rounded-full bg-purple-500 transition-all duration-500" style={{ width: `${barW}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+            {agentStats.length === 0 && (
+              <p className="text-sm text-[#48484a] text-center py-8">No agent data yet.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Customer tier — 2 cols */}
+        <div className="lg:col-span-2 rounded-2xl p-6" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
+          <p className="text-label-caps text-[#48484a] mb-1">Segments</p>
+          <h3 className="text-base font-semibold text-[#1a1c1c] tracking-tight mb-5">Customer Tiers</h3>
+
+          <div className="flex flex-col gap-5">
+            {tierStats.map(({ label, customers: cCount, tickets: tCount, color }) => (
+              <div key={label}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${color}`} />
+                    <span className="text-sm font-medium text-[#1a1c1c]">{label}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-[#48484a]">
+                    <span className="flex items-center gap-1"><Users size={11} /> {cCount}</span>
+                    <span className="flex items-center gap-1"><Ticket size={11} /> {tCount}</span>
+                  </div>
+                </div>
+                <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--surface-low)" }}>
+                  <div className={`h-2 rounded-full ${color} transition-all duration-500`}
+                    style={{ width: `${pct(tCount, maxTierTickets)}%` }} />
+                </div>
+                <p className="text-xs text-[#48484a] mt-1">
+                  {pct(tCount, total)}% of all tickets · avg {cCount > 0 ? (tCount / cCount).toFixed(1) : 0} per customer
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Totals summary */}
+          <div className="mt-6 pt-4 grid grid-cols-2 gap-3" style={{ borderTop: "1px solid rgba(204,195,215,0.15)" }}>
+            <div className="rounded-xl p-3 text-center" style={{ background: "var(--surface-low)" }}>
+              <p className="text-label-caps text-[#48484a] mb-1">CUSTOMERS</p>
+              <p className="text-xl font-bold text-[#1a1c1c]">{customers.length}</p>
+            </div>
+            <div className="rounded-xl p-3 text-center" style={{ background: "var(--surface-low)" }}>
+              <p className="text-label-caps text-[#48484a] mb-1">TICKETS/CLIENT</p>
+              <p className="text-xl font-bold text-[#1a1c1c]">
+                {customers.length > 0 ? (total / customers.length).toFixed(1) : "—"}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

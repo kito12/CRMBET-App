@@ -8,18 +8,9 @@ import {
   TrendingUp,
   Users,
   ArrowRight,
-  Dot,
 } from "lucide-react";
 import Link from "next/link";
-
-const recentTickets = [
-  { id: "TKT-1042", customer: "Marcus Webb", issue: "Withdrawal Issue", status: "Open" as const, agent: "Sarah K.", time: "4m ago" },
-  { id: "TKT-1041", customer: "Priya Nair", issue: "Bet Settlement", status: "In Progress" as const, agent: "James R.", time: "12m ago" },
-  { id: "TKT-1040", customer: "Leo Fernandez", issue: "Account Access", status: "Open" as const, agent: "Unassigned", time: "28m ago" },
-  { id: "TKT-1039", customer: "Amber Chen", issue: "Bonus Dispute", status: "In Progress" as const, agent: "Tom H.", time: "1h ago" },
-  { id: "TKT-1038", customer: "David Osei", issue: "Live Betting", status: "Resolved" as const, agent: "Sarah K.", time: "2h ago" },
-  { id: "TKT-1037", customer: "Nina Patel", issue: "Withdrawal Issue", status: "Resolved" as const, agent: "James R.", time: "3h ago" },
-];
+import { useData } from "@/components/DataProvider";
 
 const activityFeed = [
   { text: "TKT-1041 escalated to Tier 2", time: "2m ago", dot: "bg-amber-400" },
@@ -30,6 +21,14 @@ const activityFeed = [
 ];
 
 export default function Dashboard() {
+  const { tickets } = useData();
+
+  const openCount     = tickets.filter(t => t.status === "Open").length;
+  const resolvedCount = tickets.filter(t => t.status === "Resolved").length;
+  const recentTickets = [...tickets]
+    .sort((a, b) => b.id.localeCompare(a.id))
+    .slice(0, 6);
+
   return (
     <div className="max-w-[1400px] mx-auto">
       {/* Page header */}
@@ -59,9 +58,9 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {[
-                { icon: AlertCircle, label: "OPEN TICKETS", value: "47", sub: "+3 since yesterday", color: "text-purple-600", bg: "bg-purple-50" },
-                { icon: CheckCircle2, label: "RESOLVED TODAY", value: "23", sub: "↑ 12% vs avg", color: "text-emerald-600", bg: "bg-emerald-50" },
-                { icon: Clock, label: "AVG RESPONSE", value: "8m", sub: "SLA target: 10m", color: "text-blue-600", bg: "bg-blue-50" },
+                { icon: AlertCircle,  label: "OPEN TICKETS",    value: String(openCount),     sub: "currently active",   color: "text-purple-600",  bg: "bg-purple-50" },
+                { icon: CheckCircle2, label: "RESOLVED",        value: String(resolvedCount), sub: "total resolved",     color: "text-emerald-600", bg: "bg-emerald-50" },
+                { icon: Clock,        label: "AVG RESPONSE",    value: "8m",                  sub: "SLA target: 10m",    color: "text-blue-600",    bg: "bg-blue-50" },
               ].map(({ icon: Icon, label, value, sub, color, bg }) => (
                 <div key={label} className="rounded-xl p-4" style={{ background: "var(--surface-low)" }}>
                   <div className={`inline-flex p-2 rounded-lg ${bg} mb-3`}>
@@ -95,7 +94,7 @@ export default function Dashboard() {
                 ))}
               </div>
               {recentTickets.map((ticket) => (
-                <div key={ticket.id}
+                <Link key={ticket.id} href="/tickets"
                   className="grid grid-cols-[1fr_1.4fr_1.4fr_1fr_0.7fr] gap-3 items-center px-3 py-3 rounded-xl transition-all duration-150 hover:cursor-pointer"
                   style={{ background: "var(--surface-low)" }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-lowest)")}
@@ -106,13 +105,13 @@ export default function Dashboard() {
                   <span className="text-sm text-[#48484a]">{ticket.issue}</span>
                   <StatusPill status={ticket.status} />
                   <span className="text-xs text-[#48484a]">{ticket.agent}</span>
-                </div>
+                </Link>
               ))}
             </div>
             {/* Mobile cards */}
             <div className="flex sm:hidden flex-col gap-2">
               {recentTickets.map((ticket) => (
-                <div key={ticket.id} className="flex items-center justify-between px-3 py-3 rounded-xl"
+                <Link key={ticket.id} href="/tickets" className="flex items-center justify-between px-3 py-3 rounded-xl"
                   style={{ background: "var(--surface-low)" }}>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
@@ -122,8 +121,8 @@ export default function Dashboard() {
                     <p className="text-sm text-[#1a1c1c] truncate">{ticket.customer}</p>
                     <p className="text-xs text-[#48484a]">{ticket.issue} · {ticket.agent}</p>
                   </div>
-                  <span className="text-xs text-[#48484a] flex-shrink-0 ml-2">{ticket.time}</span>
-                </div>
+                  <span className="text-xs text-[#48484a] flex-shrink-0 ml-2">{ticket.created}</span>
+                </Link>
               ))}
             </div>
           </div>

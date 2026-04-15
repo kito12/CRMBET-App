@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { tickets as seedTickets, customers } from "@/lib/data";
 import type { Ticket, TicketPriority, TicketStatus } from "@/lib/data";
+import { useData } from "@/components/DataProvider";
 import { StatusPill, PriorityPill } from "@/components/ui/StatusPill";
 import { Search, Plus, SlidersHorizontal, Link2, Download, ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
 import CopyButton from "@/components/ui/CopyButton";
@@ -40,7 +40,7 @@ function getSLADotClass(created: string, status: TicketStatus): string {
 }
 
 export default function TicketsPage() {
-  const [tickets, setTickets] = useState<Ticket[]>(seedTickets);
+  const { tickets, setTickets, customers } = useData();
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState<string>("All");
   const [modalOpen, setModalOpen] = useState(false);

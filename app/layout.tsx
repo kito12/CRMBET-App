@@ -3,6 +3,7 @@ import "./globals.css";
 import Sidebar from "@/components/Sidebar";
 import ThemeProvider from "@/components/ThemeProvider";
 import CommandPaletteProvider from "@/components/CommandPaletteProvider";
+import DataProvider from "@/components/DataProvider";
 
 export const metadata: Metadata = {
   title: "BetCRM — Customer Support",
@@ -28,12 +29,14 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen" style={{ background: "var(--surface)" }}>
         <ThemeProvider>
-          <CommandPaletteProvider>
-            <Sidebar />
-            <main className="md:ml-16 min-h-screen p-4 md:p-8 pb-24 md:pb-8">
-              {children}
-            </main>
-          </CommandPaletteProvider>
+          <DataProvider>
+            <CommandPaletteProvider>
+              <Sidebar />
+              <main className="md:ml-16 min-h-screen p-4 md:p-8 pb-24 md:pb-8">
+                {children}
+              </main>
+            </CommandPaletteProvider>
+          </DataProvider>
         </ThemeProvider>
       </body>
     </html>

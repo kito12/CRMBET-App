@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { customers, tickets as seedTickets } from "@/lib/data";
 import type { Ticket, TicketPriority, TicketStatus, CustomerStatus } from "@/lib/data";
+import { useData } from "@/components/DataProvider";
 import { StatusPill, PriorityPill } from "@/components/ui/StatusPill";
 import { ArrowLeft, Mail, Phone, Globe, Calendar, Ticket as TicketIcon, AlertCircle, CheckCircle2, Plus } from "lucide-react";
 import TicketDetailModal from "@/components/tickets/TicketDetailModal";
@@ -25,13 +25,14 @@ const statusDot: Record<string, string> = {
 
 export default function CustomerProfilePage({ params }: { params: { id: string } }) {
   const { id } = params;
+  const { tickets, setTickets, customers, setCustomers } = useData();
   const customer = customers.find(c => c.clientId === id);
-  if (!customer) return null;
 
-  const [tickets, setTickets] = useState(seedTickets);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
-  const [customerStatus, setCustomerStatus] = useState<CustomerStatus>(customer.status);
+  const [customerStatus, setCustomerStatus] = useState<CustomerStatus>(customer?.status ?? "Active");
   const [statusToast, setStatusToast] = useState(false);
+
+  if (!customer) return null;
   const [newTicketOpen, setNewTicketOpen] = useState(false);
   const [ticketForm, setTicketForm] = useState({
     issue: "Withdrawal Issue", priority: "Medium" as TicketPriority,
@@ -42,6 +43,7 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
 
   function changeStatus(s: CustomerStatus) {
     setCustomerStatus(s);
+    setCustomers(prev => prev.map(c => c.clientId === id ? { ...c, status: s } : c));
     setStatusToast(true);
     setTimeout(() => setStatusToast(false), 2000);
   }

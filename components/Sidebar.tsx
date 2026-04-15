@@ -7,23 +7,25 @@ import {
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { useCommandPalette } from "./CommandPaletteProvider";
-import { tickets } from "@/lib/data";
+import { useData } from "./DataProvider";
+import { BarChart2 } from "lucide-react";
 
 const navItems = [
-  { href: "/",          icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/tickets",   icon: Ticket,          label: "Tickets" },
-  { href: "/customers", icon: UserCircle,       label: "Customers" },
-  { href: "/messages",  icon: MessageSquare,   label: "Messages" },
-  { href: "/users",     icon: Users,           label: "Support Team" },
-  { href: "/settings",  icon: Settings,        label: "Settings" },
+  { href: "/",           icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/tickets",    icon: Ticket,          label: "Tickets" },
+  { href: "/customers",  icon: UserCircle,      label: "Customers" },
+  { href: "/analytics",  icon: BarChart2,       label: "Analytics" },
+  { href: "/messages",   icon: MessageSquare,   label: "Messages" },
+  { href: "/users",      icon: Users,           label: "Support Team" },
+  { href: "/settings",   icon: Settings,        label: "Settings" },
 ];
-
-const openTicketCount = tickets.filter(t => t.status === "Open").length;
 
 export default function Sidebar() {
   const pathname = usePathname();
   const { theme, toggle } = useTheme();
   const { open: openPalette } = useCommandPalette();
+  const { tickets } = useData();
+  const openTicketCount = tickets.filter(t => t.status === "Open").length;
 
   return (
     <>

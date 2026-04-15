@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { Search, UserCircle, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { customers as seedCustomers, tickets } from "@/lib/data";
 import type { Customer, AccountType, CustomerStatus } from "@/lib/data";
+import { useData } from "@/components/DataProvider";
 import Modal from "@/components/ui/Modal";
 import { InputField, SelectField } from "@/components/ui/FormField";
 
@@ -29,7 +29,7 @@ const defaultForm = {
 };
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>(seedCustomers);
+  const { customers, setCustomers, tickets } = useData();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [addOpen, setAddOpen] = useState(false);
