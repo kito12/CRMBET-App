@@ -5,6 +5,7 @@ import { Search, UserCircle, Plus, ChevronLeft, ChevronRight } from "lucide-reac
 import Link from "next/link";
 import type { Customer, AccountType, CustomerStatus } from "@/lib/data";
 import { useData } from "@/components/DataProvider";
+import { SkeletonCard, SkeletonTableRow } from "@/components/ui/Skeleton";
 import Modal from "@/components/ui/Modal";
 import { InputField, SelectField } from "@/components/ui/FormField";
 
@@ -29,7 +30,7 @@ const defaultForm = {
 };
 
 export default function CustomersPage() {
-  const { customers, setCustomers, tickets } = useData();
+  const { customers, setCustomers, tickets, hydrated } = useData();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [addOpen, setAddOpen] = useState(false);
@@ -80,11 +81,13 @@ export default function CustomersPage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {[
-          { label: "TOTAL CLIENTS",   value: customers.length,                                    sub: "all time",           color: "text-purple-600", bg: "bg-purple-50" },
-          { label: "ACTIVE",          value: customers.filter(c => c.status === "Active").length, sub: "currently active",   color: "text-emerald-600",bg: "bg-emerald-50" },
-          { label: "VIP ACCOUNTS",    value: customers.filter(c => c.accountType === "VIP").length, sub: "high-value clients", color: "text-blue-600",   bg: "bg-blue-50" },
-          { label: "OPEN TICKETS",    value: tickets.filter(t => t.status === "Open").length,     sub: "across all clients", color: "text-amber-600",  bg: "bg-amber-50" },
+        {!hydrated ? (
+          [1,2,3,4].map(i => <SkeletonCard key={i} />)
+        ) : [
+          { label: "TOTAL CLIENTS", value: customers.length,                                      sub: "all time",           color: "text-purple-600",  bg: "bg-purple-50" },
+          { label: "ACTIVE",        value: customers.filter(c => c.status === "Active").length,   sub: "currently active",   color: "text-emerald-600", bg: "bg-emerald-50" },
+          { label: "VIP ACCOUNTS",  value: customers.filter(c => c.accountType === "VIP").length, sub: "high-value clients", color: "text-blue-600",    bg: "bg-blue-50" },
+          { label: "OPEN TICKETS",  value: tickets.filter(t => t.status === "Open").length,       sub: "across all clients", color: "text-amber-600",   bg: "bg-amber-50" },
         ].map(({ label, value, sub, color, bg }) => (
           <div key={label} className="rounded-2xl p-5" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
             <div className={`inline-flex p-2 rounded-lg ${bg} mb-3`}>
@@ -157,7 +160,9 @@ export default function CustomersPage() {
 
         {/* Rows */}
         <div className="flex flex-col p-3 gap-1">
-          {paginated.length === 0 ? (
+          {!hydrated ? (
+            [1,2,3,4,5,6,7,8].map(i => <SkeletonTableRow key={i} cols={7} />)
+          ) : paginated.length === 0 ? (
             <div className="py-16 text-center text-[#48484a] text-sm">No customers found.</div>
           ) : (
             paginated.map((customer) => {

@@ -10,6 +10,7 @@ interface DataContextType {
   customers: Customer[];
   setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
   resetData: () => void;
+  hydrated: boolean;
 }
 
 const DataContext = createContext<DataContextType | null>(null);
@@ -54,7 +55,7 @@ export default function DataProvider({ children }: { children: React.ReactNode }
   }, []);
 
   return (
-    <DataContext.Provider value={{ tickets, setTickets, customers, setCustomers, resetData }}>
+    <DataContext.Provider value={{ tickets, setTickets, customers, setCustomers, resetData, hydrated }}>
       {children}
     </DataContext.Provider>
   );

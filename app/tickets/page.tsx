@@ -9,6 +9,7 @@ import CopyButton from "@/components/ui/CopyButton";
 import Modal from "@/components/ui/Modal";
 import { InputField, SelectField, TextareaField } from "@/components/ui/FormField";
 import TicketDetailModal from "@/components/tickets/TicketDetailModal";
+import { SkeletonTableRow } from "@/components/ui/Skeleton";
 
 const statusFilters = ["All", "Open", "In Progress", "Resolved", "On Hold"] as const;
 const agents = ["Unassigned", "Sarah K.", "James R.", "Tom H.", "Mia S.", "Daniel P.", "Omar K.", "Yuki T."];
@@ -40,7 +41,7 @@ function getSLADotClass(created: string, status: TicketStatus): string {
 }
 
 export default function TicketsPage() {
-  const { tickets, setTickets, customers } = useData();
+  const { tickets, setTickets, customers, hydrated } = useData();
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState<string>("All");
   const [modalOpen, setModalOpen] = useState(false);
@@ -207,7 +208,9 @@ export default function TicketsPage() {
 
       {/* Mobile card list */}
       <div className="flex md:hidden flex-col gap-2 mb-6">
-        {paginated.length === 0 ? (
+        {!hydrated ? (
+          [1,2,3,4,5].map(i => <SkeletonTableRow key={i} cols={3} />)
+        ) : paginated.length === 0 ? (
           <p className="text-center text-sm text-[#48484a] py-12">No tickets match your search.</p>
         ) : paginated.map(ticket => (
           <div key={ticket.id} onClick={() => setSelectedTicket(ticket)}
@@ -250,7 +253,9 @@ export default function TicketsPage() {
         </div>
 
         <div className="flex flex-col p-3 gap-1">
-          {paginated.length === 0 ? (
+          {!hydrated ? (
+            [1,2,3,4,5,6,7,8].map(i => <SkeletonTableRow key={i} cols={9} />)
+          ) : paginated.length === 0 ? (
             <div className="py-16 text-center text-[#48484a] text-sm">No tickets match your search.</div>
           ) : paginated.map(ticket => (
             <div key={ticket.id}
