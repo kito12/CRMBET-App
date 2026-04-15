@@ -5,6 +5,7 @@ import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Ticket, TicketPriority, TicketStatus, AuditEntry } from "@/lib/data";
 import { useData } from "@/components/DataProvider";
+import { useAuth } from "@/components/AuthProvider";
 import { StatusPill, PriorityPill } from "@/components/ui/StatusPill";
 import { Search, Plus, Link2, Download, ChevronLeft, ChevronRight, CheckCircle2, LayoutList, Columns, SlidersHorizontal, X } from "lucide-react";
 import CopyButton from "@/components/ui/CopyButton";
@@ -78,6 +79,7 @@ function getSLADotClass(ticket: Ticket): string {
 
 export default function TicketsPage() {
   const { tickets, setTickets, customers, hydrated } = useData();
+  const { user: currentUser } = useAuth();
   const [agentList, setAgentList] = useState<string[]>(["Unassigned"]);
 
   // Live agents from Firestore
@@ -208,7 +210,8 @@ export default function TicketsPage() {
     const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     const label = `${months[now.getMonth()]} ${now.getDate()}, ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
     const newId = `TKT-${Date.now()}`;
-    const createdEntry: AuditEntry = { id: `a-create-${Date.now()}`, action: "created", author: "You", timestamp: label };
+    const authorName = currentUser?.name ?? "Agent";
+    const createdEntry: AuditEntry = { id: `a-create-${Date.now()}`, action: "created", author: authorName, timestamp: label };
     setTickets(prev => [{
       id: newId, clientId: form.clientId || "—", customer: form.customer,
       email: form.email, phone: form.phone, issue: form.issue, priority: form.priority,
