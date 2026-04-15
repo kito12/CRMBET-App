@@ -417,7 +417,7 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
           </div>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <SelectField label="Issue Type" value={form.issue} onChange={e => update("issue", e.target.value)}>
-              {["Withdrawal Issue","Bet Settlement","Account Access","Bonus Dispute","Live Betting"].map(o => <option key={o}>{o}</option>)}
+              {["Withdrawal Issue","Restricted Withdrawals","Deposits","Blocked Accounts","Bet Settlement","Account Access","Bonus Dispute","Live Betting","Other"].map(o => <option key={o}>{o}</option>)}
             </SelectField>
             <div />
           </div>

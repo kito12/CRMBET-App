@@ -12,7 +12,7 @@ import { SkeletonCard, SkeletonTableRow, SkeletonLine } from "@/components/ui/Sk
 import type { Ticket, TicketPriority, TicketStatus } from "@/lib/data";
 
 // ─── Random ticket generator ─────────────────────────────────────────────────
-const ISSUES    = ["Withdrawal Issue", "Bet Settlement", "Account Access", "Bonus Dispute", "Live Betting"];
+const ISSUES    = ["Withdrawal Issue", "Restricted Withdrawals", "Deposits", "Blocked Accounts", "Bet Settlement", "Account Access", "Bonus Dispute", "Live Betting", "Other"];
 const PRIOS     = ["High", "Medium", "Low"] as TicketPriority[];
 const MONTHS    = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -108,12 +108,16 @@ export default function Dashboard() {
   // Issue breakdown percentages
   const total = tickets.length || 1;
   const issuePcts = [
-    { label: "Withdrawal",    color: "bg-purple-500", count: tickets.filter(t => t.issue === "Withdrawal Issue").length },
-    { label: "Bet Settlement",color: "bg-blue-500",   count: tickets.filter(t => t.issue === "Bet Settlement").length },
-    { label: "Account Access",color: "bg-indigo-400", count: tickets.filter(t => t.issue === "Account Access").length },
-    { label: "Bonus Dispute", color: "bg-violet-300", count: tickets.filter(t => t.issue === "Bonus Dispute").length },
-    { label: "Live Betting",  color: "bg-purple-200", count: tickets.filter(t => t.issue === "Live Betting").length },
-  ].map(x => ({ ...x, pct: Math.round((x.count / total) * 100) }))
+    { label: "Withdrawal",          color: "bg-purple-500", count: tickets.filter(t => t.issue === "Withdrawal Issue").length },
+    { label: "Restr. Withdrawals",  color: "bg-purple-400", count: tickets.filter(t => t.issue === "Restricted Withdrawals").length },
+    { label: "Deposits",            color: "bg-blue-400",   count: tickets.filter(t => t.issue === "Deposits").length },
+    { label: "Blocked Accounts",    color: "bg-red-400",    count: tickets.filter(t => t.issue === "Blocked Accounts").length },
+    { label: "Bet Settlement",      color: "bg-blue-500",   count: tickets.filter(t => t.issue === "Bet Settlement").length },
+    { label: "Account Access",      color: "bg-indigo-400", count: tickets.filter(t => t.issue === "Account Access").length },
+    { label: "Bonus Dispute",       color: "bg-violet-300", count: tickets.filter(t => t.issue === "Bonus Dispute").length },
+    { label: "Live Betting",        color: "bg-purple-200", count: tickets.filter(t => t.issue === "Live Betting").length },
+  ].filter(x => x.count > 0)
+   .map(x => ({ ...x, pct: Math.round((x.count / total) * 100) }))
    .sort((a, b) => b.pct - a.pct);
 
   // Sparkline: last 7 "days" based on ticket IDs bucketed into groups of 2

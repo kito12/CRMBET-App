@@ -355,7 +355,7 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
           </div>
           <div className="grid grid-cols-2 gap-4">
             <SelectField label="Issue Type" value={ticketForm.issue} onChange={(e) => setTicketForm({ ...ticketForm, issue: e.target.value })}>
-              {["Withdrawal Issue","Bet Settlement","Account Access","Bonus Dispute","Live Betting"].map(o => <option key={o}>{o}</option>)}
+              {["Withdrawal Issue","Restricted Withdrawals","Deposits","Blocked Accounts","Bet Settlement","Account Access","Bonus Dispute","Live Betting","Other"].map(o => <option key={o}>{o}</option>)}
             </SelectField>
             <SelectField label="Priority" value={ticketForm.priority} onChange={(e) => setTicketForm({ ...ticketForm, priority: e.target.value as TicketPriority })}>
               {(["High","Medium","Low"] as TicketPriority[]).map(o => <option key={o}>{o}</option>)}

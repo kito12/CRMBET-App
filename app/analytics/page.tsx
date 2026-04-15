@@ -140,7 +140,7 @@ export default function AnalyticsPage() {
   const thisWeekCount = weekDays.reduce((s, d) => s + d.count, 0);
 
   // ── Issue type breakdown ──
-  const issueTypes = ["Withdrawal Issue", "Bet Settlement", "Account Access", "Bonus Dispute", "Live Betting"];
+  const issueTypes = ["Withdrawal Issue", "Restricted Withdrawals", "Deposits", "Blocked Accounts", "Bet Settlement", "Account Access", "Bonus Dispute", "Live Betting", "Other"];
   const issueCounts = issueTypes.map(i => ({ label: i, count: tickets.filter(t => t.issue === i).length }))
     .sort((a, b) => b.count - a.count);
   const maxIssue = Math.max(...issueCounts.map(x => x.count), 1);

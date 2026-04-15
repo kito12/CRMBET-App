@@ -7,6 +7,9 @@ import { db } from "@/lib/firebase";
 
 const ISSUE_TYPES = [
   "Withdrawal Issue",
+  "Restricted Withdrawals",
+  "Deposits",
+  "Blocked Accounts",
   "Bet Settlement",
   "Account Access",
   "Bonus Dispute",

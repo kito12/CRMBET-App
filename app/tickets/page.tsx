@@ -531,7 +531,7 @@ export default function TicketsPage() {
             onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           <div className="grid grid-cols-2 gap-4">
             <SelectField label="Issue Type" value={form.issue} onChange={(e) => setForm({ ...form, issue: e.target.value })}>
-              {["Withdrawal Issue","Bet Settlement","Account Access","Bonus Dispute","Live Betting"].map(o => <option key={o}>{o}</option>)}
+              {["Withdrawal Issue","Restricted Withdrawals","Deposits","Blocked Accounts","Bet Settlement","Account Access","Bonus Dispute","Live Betting","Other"].map(o => <option key={o}>{o}</option>)}
             </SelectField>
             <SelectField label="Priority" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value as TicketPriority })}>
               {(["High","Medium","Low"] as TicketPriority[]).map(o => <option key={o}>{o}</option>)}
