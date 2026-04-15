@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Users, Clock, Star, Plus, X, Mail, Shield, UserCircle, Trash2 } from "lucide-react";
-import { collection, onSnapshot, addDoc, deleteDoc, doc, query, orderBy } from "firebase/firestore";
+import { Search, Users, Clock, Plus, X, Mail, Shield, UserCircle, Trash2, ChevronDown } from "lucide-react";
+import { collection, onSnapshot, addDoc, deleteDoc, doc, query, orderBy, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -48,6 +48,7 @@ export default function UsersPage() {
   const [invites,     setInvites]     = useState<Invite[]>([]);
   const [search,      setSearch]      = useState("");
   const [inviteOpen,  setInviteOpen]  = useState(false);
+  const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteError, setInviteError] = useState("");
   const [inviting,    setInviting]    = useState(false);
@@ -95,6 +96,15 @@ export default function UsersPage() {
 
   async function removeInvite(id: string) {
     await deleteDoc(doc(db, "invites", id));
+  }
+
+  async function changeRole(uid: string, newRole: "admin" | "agent") {
+    setRoleUpdating(uid);
+    try {
+      await updateDoc(doc(db, "users", uid), { role: newRole });
+    } finally {
+      setRoleUpdating(null);
+    }
   }
 
   const filtered = users.filter(u =>
@@ -168,13 +178,28 @@ export default function UsersPage() {
             </div>
 
             <h3 className="text-sm font-semibold tracking-tight mb-1" style={{ color: "var(--on-surface)" }}>{agent.name}</h3>
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mb-3 ${roleColor[agent.role]}`}>
-              {agent.role === "admin" ? "Administrator" : "Support Agent"}
-            </span>
+
+            {/* Role — dropdown for admins, badge for others */}
+            {isAdmin && agent.uid !== currentUser?.uid ? (
+              <div className="relative inline-block mb-3">
+                <select
+                  value={agent.role}
+                  disabled={roleUpdating === agent.uid}
+                  onChange={e => changeRole(agent.uid, e.target.value as "admin" | "agent")}
+                  className={`appearance-none pl-2.5 pr-7 py-0.5 rounded-full text-xs font-medium cursor-pointer outline-none transition-opacity ${roleColor[agent.role]} ${roleUpdating === agent.uid ? "opacity-50" : ""}`}>
+                  <option value="agent">Support Agent</option>
+                  <option value="admin">Administrator</option>
+                </select>
+                <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
+              </div>
+            ) : (
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mb-3 ${roleColor[agent.role]}`}>
+                {agent.role === "admin" ? "Administrator" : "Support Agent"}
+              </span>
+            )}
 
             <p className="text-xs truncate" style={{ color: "var(--on-surface-variant)" }}>{agent.email}</p>
 
-            {/* Show "You" badge for current user */}
             {agent.uid === currentUser?.uid && (
               <span className="mt-2 inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 text-purple-600">You</span>
             )}
