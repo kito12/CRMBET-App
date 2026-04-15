@@ -3,8 +3,9 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import {
   onAuthStateChanged,
-  signInWithEmailAndPassword,
   signOut as firebaseSignOut,
+  signInWithPopup,
+  GoogleAuthProvider,
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
@@ -12,17 +13,18 @@ import { auth, db } from "@/lib/firebase";
 export type UserRole = "admin" | "agent";
 
 export interface AuthUser {
-  uid:   string;
-  email: string;
-  name:  string;
-  role:  UserRole;
+  uid:    string;
+  email:  string;
+  name:   string;
+  role:   UserRole;
+  photo?: string;
 }
 
 interface AuthContextType {
-  user:    AuthUser | null;
-  loading: boolean;
-  signIn:  (email: string, password: string) => Promise<void>;
-  signOut: () => Promise<void>;
+  user:          AuthUser | null;
+  loading:       boolean;
+  signInGoogle:  () => Promise<void>;
+  signOut:       () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -33,7 +35,6 @@ export function useAuth() {
   return ctx;
 }
 
-// Emails that always receive admin role (set in .env.local)
 function isAdminEmail(email: string) {
   const list = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "")
     .split(",")
@@ -41,6 +42,8 @@ function isAdminEmail(email: string) {
     .filter(Boolean);
   return list.includes(email.toLowerCase());
 }
+
+const googleProvider = new GoogleAuthProvider();
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser]       = useState<AuthUser | null>(null);
@@ -53,31 +56,29 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         const userSnap = await getDoc(userRef);
         const email    = firebaseUser.email ?? "";
         const role: UserRole = isAdminEmail(email) ? "admin" : "agent";
+        const name  = firebaseUser.displayName ?? email.split("@")[0];
+        const photo = firebaseUser.photoURL ?? undefined;
 
         if (!userSnap.exists()) {
-          // First sign-in — create the user document
-          const name = firebaseUser.displayName ?? email.split("@")[0];
           await setDoc(userRef, {
-            uid:       firebaseUser.uid,
-            email,
-            name,
-            role,
-            createdAt: serverTimestamp(),
-            active:    true,
+            uid: firebaseUser.uid, email, name, role, photo: photo ?? null,
+            createdAt: serverTimestamp(), active: true,
           });
-          setUser({ uid: firebaseUser.uid, email, name, role });
+          setUser({ uid: firebaseUser.uid, email, name, role, photo });
         } else {
           const data = userSnap.data();
-          // Always enforce admin role for emails on the allow-list
           const resolvedRole: UserRole = isAdminEmail(email) ? "admin" : (data.role as UserRole ?? "agent");
           if (isAdminEmail(email) && data.role !== "admin") {
             await setDoc(userRef, { role: "admin" }, { merge: true });
           }
+          // Keep name/photo fresh from Google
+          await setDoc(userRef, { name, photo: photo ?? null }, { merge: true });
           setUser({
             uid:   firebaseUser.uid,
             email: data.email ?? email,
-            name:  data.name  ?? email.split("@")[0],
+            name,
             role:  resolvedRole,
+            photo,
           });
         }
       } else {
@@ -88,8 +89,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     return unsub;
   }, []);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+  const signInGoogle = useCallback(async () => {
+    await signInWithPopup(auth, googleProvider);
   }, []);
 
   const signOut = useCallback(async () => {
@@ -97,7 +98,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signInGoogle, signOut }}>
       {children}
     </AuthContext.Provider>
   );

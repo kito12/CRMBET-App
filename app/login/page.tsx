@@ -2,46 +2,44 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Zap, Eye, EyeOff } from "lucide-react";
+import { Zap } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 
 export default function LoginPage() {
-  const { signIn, user, loading } = useAuth();
+  const { signInGoogle, user, loading } = useAuth();
   const router = useRouter();
-
-  const [email,     setEmail]     = useState("");
-  const [password,  setPassword]  = useState("");
-  const [showPass,  setShowPass]  = useState(false);
-  const [error,     setError]     = useState("");
+  const [error,      setError]      = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Already signed in — go to dashboard
   useEffect(() => {
     if (!loading && user) router.replace("/");
   }, [user, loading, router]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleGoogle() {
     setError("");
     setSubmitting(true);
     try {
-      await signIn(email, password);
+      await signInGoogle();
       router.replace("/");
-    } catch {
-      setError("Incorrect email or password. Please try again.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("popup-closed")) {
+        setError("Sign-in cancelled. Please try again.");
+      } else {
+        setError("Sign-in failed. Make sure your account has been granted access.");
+      }
     } finally {
       setSubmitting(false);
     }
   }
 
-  if (loading || user) return null; // avoid flash
+  if (loading || user) return null;
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center p-4"
-      style={{ background: "var(--surface)" }}
-    >
+    <div className="min-h-screen flex items-center justify-center p-4"
+      style={{ background: "var(--surface)" }}>
       <div className="w-full max-w-sm">
+
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center mb-4 shadow-lg">
@@ -56,73 +54,35 @@ export default function LoginPage() {
         </div>
 
         {/* Card */}
-        <div
-          className="rounded-2xl p-7"
-          style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px rgba(26,28,28,0.1)" }}
-        >
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            {/* Email */}
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--on-surface-variant)" }}>
-                Email address
-              </label>
-              <input
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="you@company.com"
-                required
-                className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-300 transition-all"
-                style={{ background: "var(--surface-low)", color: "var(--on-surface)" }}
-              />
-            </div>
+        <div className="rounded-2xl p-7"
+          style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px rgba(26,28,28,0.1)" }}>
 
-            {/* Password */}
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--on-surface-variant)" }}>
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPass ? "text" : "password"}
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  className="w-full px-3.5 py-2.5 pr-10 rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-300 transition-all"
-                  style={{ background: "var(--surface-low)", color: "var(--on-surface)" }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
-                  style={{ color: "var(--on-surface-variant)" }}
-                >
-                  {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-            </div>
-
-            {/* Error */}
-            {error && (
-              <p className="text-xs text-red-500 text-center -mt-1">{error}</p>
+          <button
+            onClick={handleGoogle}
+            disabled={submitting}
+            className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-150 hover:opacity-90 disabled:opacity-50"
+            style={{ background: "var(--surface-low)", color: "var(--on-surface)", border: "1px solid rgba(148,163,184,0.2)" }}>
+            {/* Google logo SVG */}
+            {!submitting ? (
+              <svg width="18" height="18" viewBox="0 0 18 18">
+                <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+                <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+                <path fill="#FBBC05" d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/>
+                <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 7.293C4.672 5.163 6.656 3.58 9 3.58z"/>
+              </svg>
+            ) : (
+              <div className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
             )}
+            {submitting ? "Signing in…" : "Continue with Google"}
+          </button>
 
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={submitting || !email || !password}
-              className="w-full py-2.5 rounded-xl text-sm font-semibold text-white gradient-primary hover:opacity-90 transition-opacity disabled:opacity-50 mt-1"
-            >
-              {submitting ? "Signing in…" : "Sign in"}
-            </button>
-          </form>
+          {error && (
+            <p className="text-xs text-red-500 text-center mt-3">{error}</p>
+          )}
         </div>
 
         <p className="text-center text-xs mt-6" style={{ color: "var(--on-surface-variant)" }}>
-          Don&apos;t have an account? Contact your administrator.
+          Don&apos;t have access? Contact your administrator.
         </p>
       </div>
     </div>
