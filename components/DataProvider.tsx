@@ -6,9 +6,10 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "./AuthProvider";
-import { defaultEscalationSettings, defaultSLAPolicies } from "@/lib/data";
+import { defaultEscalationSettings, defaultSLAPolicies, defaultAutomations } from "@/lib/data";
 import type {
-  Customer, Ticket, AppNotification, CannedResponse, EscalationSettings, SLAPolicies, AuditEntry,
+  Customer, Ticket, AppNotification, CannedResponse,
+  EscalationSettings, SLAPolicies, AutomationRule, AuditEntry,
 } from "@/lib/data";
 
 interface DataContextType {
@@ -28,6 +29,8 @@ interface DataContextType {
   setEscalationSettings: React.Dispatch<React.SetStateAction<EscalationSettings>>;
   slaPolicy: SLAPolicies;
   setSlaPolicy: React.Dispatch<React.SetStateAction<SLAPolicies>>;
+  automations: AutomationRule[];
+  setAutomations: React.Dispatch<React.SetStateAction<AutomationRule[]>>;
   hydrated: boolean;
   messagesUnreadCount: number;
 }
@@ -99,6 +102,7 @@ export default function DataProvider({ children }: { children: React.ReactNode }
   const [cannedResponses,    _setCannedResponses]    = useState<CannedResponse[]>([]);
   const [escalationSettings, _setEscalationSettings] = useState<EscalationSettings>(defaultEscalationSettings);
   const [slaPolicy,          _setSlaPolicy]          = useState<SLAPolicies>(defaultSLAPolicies);
+  const [automations,        _setAutomations]        = useState<AutomationRule[]>(defaultAutomations);
   const [hydrated,           setHydrated]            = useState(false);
   const [messagesUnreadCount, setMessagesUnreadCount] = useState(0);
 
@@ -107,8 +111,12 @@ export default function DataProvider({ children }: { children: React.ReactNode }
   const customersRef = useRef<Customer[]>([]);
   const notifsRef    = useRef<AppNotification[]>([]);
   const cannedRef    = useRef<CannedResponse[]>([]);
-  const escalRef     = useRef<EscalationSettings>(defaultEscalationSettings);
-  const slaRef       = useRef<SLAPolicies>(defaultSLAPolicies);
+  const escalRef          = useRef<EscalationSettings>(defaultEscalationSettings);
+  const slaRef            = useRef<SLAPolicies>(defaultSLAPolicies);
+  const automationsRef    = useRef<AutomationRule[]>(defaultAutomations);
+  const agentNamesRef     = useRef<string[]>([]);
+  // Tracks rule+ticket combos already acted on this session — prevents re-firing every 60 s
+  const firedAutomations  = useRef<Set<string>>(new Set());
 
   // ── Wrapped setters: update React state + sync delta to Firestore ──────────
   const setTickets: React.Dispatch<React.SetStateAction<Ticket[]>> = useCallback((action) => {
@@ -165,6 +173,15 @@ export default function DataProvider({ children }: { children: React.ReactNode }
     });
   }, []);
 
+  const setAutomations: React.Dispatch<React.SetStateAction<AutomationRule[]>> = useCallback((action) => {
+    _setAutomations(prev => {
+      const next = typeof action === "function" ? action(prev) : action;
+      setDoc(doc(db, "settings", "automations"), { rules: next }).catch(console.error);
+      automationsRef.current = next;
+      return next;
+    });
+  }, []);
+
   // ── Firestore listeners: seed once on first login, then stream live ────────
   useEffect(() => {
     if (!user) {
@@ -174,7 +191,10 @@ export default function DataProvider({ children }: { children: React.ReactNode }
       _setCannedResponses([]);
       _setEscalationSettings(defaultEscalationSettings);
       _setSlaPolicy(defaultSLAPolicies);
+      _setAutomations(defaultAutomations);
       slaRef.current = defaultSLAPolicies;
+      automationsRef.current = defaultAutomations;
+      firedAutomations.current.clear();
       ticketsRef.current   = [];
       customersRef.current = [];
       notifsRef.current    = [];
@@ -185,7 +205,7 @@ export default function DataProvider({ children }: { children: React.ReactNode }
     }
 
     const uid = user.uid;
-    const loaded = { tickets: false, customers: false, notifs: false, canned: false, escalation: false, sla: false };
+    const loaded = { tickets: false, customers: false, notifs: false, canned: false, escalation: false, sla: false, automations: false };
     function markLoaded(key: keyof typeof loaded) {
       loaded[key] = true;
       if (Object.values(loaded).every(Boolean)) setHydrated(true);
@@ -231,6 +251,21 @@ export default function DataProvider({ children }: { children: React.ReactNode }
       _setSlaPolicy(data); slaRef.current = data; markLoaded("sla");
     });
 
+    const unsubAutomations = onSnapshot(doc(db, "settings", "automations"), async snap => {
+      if (!snap.exists()) {
+        await setDoc(doc(db, "settings", "automations"), { rules: defaultAutomations });
+        markLoaded("automations");
+        return;
+      }
+      const rules = (snap.data().rules ?? defaultAutomations) as AutomationRule[];
+      _setAutomations(rules); automationsRef.current = rules; markLoaded("automations");
+    });
+
+    // Keep an up-to-date agent name list for round-robin assignment
+    const unsubUsers = onSnapshot(collection(db, "users"), snap => {
+      agentNamesRef.current = snap.docs.map(d => d.data().name as string).filter(Boolean);
+    });
+
     const unsubConversations = onSnapshot(
       query(collection(db, "conversations"), where("participants", "array-contains", uid)),
       snap => {
@@ -242,7 +277,8 @@ export default function DataProvider({ children }: { children: React.ReactNode }
 
     return () => {
       unsubTickets(); unsubCustomers(); unsubNotifs();
-      unsubCanned(); unsubEscalation(); unsubSla(); unsubConversations();
+      unsubCanned(); unsubEscalation(); unsubSla();
+      unsubAutomations(); unsubUsers(); unsubConversations();
     };
   }, [user]);
 
@@ -321,6 +357,138 @@ export default function DataProvider({ children }: { children: React.ReactNode }
         });
         return changed ? updated : prev;
       });
+
+      // ── Automation rule engine ───────────────────────────────────────────────
+      const activeRules = automationsRef.current.filter(r => r.enabled);
+      if (activeRules.length === 0) return;
+
+      setTickets(prev => {
+        let changed = false;
+        const updated = prev.map(t => {
+          if (t.status === "Resolved" || t.status === "On Hold") return t;
+          const ageMin = ticketAgeMs(t, now) / 60_000;
+          let ticket = { ...t };
+
+          for (const rule of activeRules) {
+            const firedKey = `${rule.id}:${t.id}`;
+
+            // Evaluate ALL conditions (AND logic)
+            const conditionsMet = rule.conditions.every(cond => {
+              const val = cond.value;
+              switch (cond.field) {
+                case "age_minutes": {
+                  const n = Number(val);
+                  if (cond.operator === "greater_than") return ageMin > n;
+                  if (cond.operator === "less_than")    return ageMin < n;
+                  return Math.floor(ageMin) === n;
+                }
+                case "agent":
+                  return cond.operator === "equals"     ? ticket.agent    === val
+                       : cond.operator === "not_equals" ? ticket.agent    !== val
+                       : false;
+                case "status":
+                  return cond.operator === "equals"     ? ticket.status   === val
+                       : cond.operator === "not_equals" ? ticket.status   !== val
+                       : false;
+                case "priority":
+                  return cond.operator === "equals"     ? ticket.priority === val
+                       : cond.operator === "not_equals" ? ticket.priority !== val
+                       : false;
+                default: return false;
+              }
+            });
+
+            if (!conditionsMet) continue;
+
+            // Execute actions
+            for (const action of rule.actions) {
+              if (action.type === "assign_agent") {
+                if (firedAutomations.current.has(firedKey)) continue;
+                let assignTo = action.value;
+                if (assignTo === "round_robin") {
+                  const agents = agentNamesRef.current;
+                  if (agents.length === 0) continue;
+                  // Pick agent with fewest open tickets
+                  const counts = new Map(agents.map(a => [a, 0]));
+                  prev.forEach(tk => {
+                    if (tk.status !== "Resolved" && tk.agent !== "Unassigned" && counts.has(tk.agent)) {
+                      counts.set(tk.agent, (counts.get(tk.agent) ?? 0) + 1);
+                    }
+                  });
+                  let min = Infinity;
+                  counts.forEach((c, a) => { if (c < min) { min = c; assignTo = a; } });
+                }
+                if (assignTo && assignTo !== "round_robin") {
+                  const auditEntry: AuditEntry = {
+                    id: `audit-auto-${t.id}-${Date.now()}`,
+                    action: "agent_changed",
+                    from: ticket.agent,
+                    to: assignTo,
+                    author: "Automation",
+                    timestamp: nowLabel(),
+                  };
+                  ticket = {
+                    ...ticket,
+                    agent: assignTo,
+                    auditLog: [auditEntry, ...(ticket.auditLog ?? [])],
+                  };
+                  changed = true;
+                  firedAutomations.current.add(firedKey);
+                  setNotifications(ns => {
+                    if (ns.some(n => n.id === `n-auto-assign-${t.id}`)) return ns;
+                    return [{
+                      id: `n-auto-assign-${t.id}`,
+                      type: "assigned" as const,
+                      ticketId: t.id,
+                      message: `${t.id} auto-assigned to ${assignTo} by rule "${rule.name}"`,
+                      timestamp: nowLabel(),
+                      read: false,
+                    }, ...ns];
+                  });
+                }
+              }
+
+              if (action.type === "notify") {
+                if (firedAutomations.current.has(firedKey)) continue;
+                const msg = action.value.replace("{{ticket_id}}", t.id);
+                setNotifications(ns => {
+                  if (ns.some(n => n.id === `n-auto-${rule.id}-${t.id}`)) return ns;
+                  return [{
+                    id: `n-auto-${rule.id}-${t.id}`,
+                    type: "sla_breach" as const,
+                    ticketId: t.id,
+                    message: msg,
+                    timestamp: nowLabel(),
+                    read: false,
+                  }, ...ns];
+                });
+                firedAutomations.current.add(firedKey);
+              }
+
+              if (action.type === "change_status") {
+                if (firedAutomations.current.has(firedKey)) continue;
+                const auditEntry: AuditEntry = {
+                  id: `audit-auto-status-${t.id}-${Date.now()}`,
+                  action: "status_changed",
+                  from: ticket.status,
+                  to: action.value,
+                  author: "Automation",
+                  timestamp: nowLabel(),
+                };
+                ticket = {
+                  ...ticket,
+                  status: action.value as Ticket["status"],
+                  auditLog: [auditEntry, ...(ticket.auditLog ?? [])],
+                };
+                changed = true;
+                firedAutomations.current.add(firedKey);
+              }
+            }
+          }
+          return changed ? ticket : t;
+        });
+        return changed ? updated : prev;
+      });
     };
 
     check(); // run immediately on hydration
@@ -357,6 +525,7 @@ export default function DataProvider({ children }: { children: React.ReactNode }
       cannedResponses, setCannedResponses,
       escalationSettings, setEscalationSettings,
       slaPolicy, setSlaPolicy,
+      automations, setAutomations,
       hydrated, messagesUnreadCount,
     }}>
       {children}

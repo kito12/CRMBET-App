@@ -9,7 +9,7 @@ import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useData } from "@/components/DataProvider";
 import { useAuth } from "@/components/AuthProvider";
-import type { CannedResponse } from "@/lib/data";
+import type { CannedResponse, AutomationRule, AutomationCondition, AutomationAction } from "@/lib/data";
 
 function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
@@ -35,7 +35,7 @@ const CATEGORIES = ["Withdrawal", "Bet Settlement", "Account Access", "Bonus Dis
 const blankCanned = (): Omit<CannedResponse, "id"> => ({ title: "", category: "General", body: "" });
 
 export default function SettingsPage() {
-  const { escalationSettings, setEscalationSettings, cannedResponses, setCannedResponses, slaPolicy, setSlaPolicy } = useData();
+  const { escalationSettings, setEscalationSettings, cannedResponses, setCannedResponses, slaPolicy, setSlaPolicy, automations, setAutomations } = useData();
   const { user, signOut } = useAuth();
 
   /* ── Profile / Notifications / CRM local state ── */
@@ -108,6 +108,48 @@ export default function SettingsPage() {
   function deleteCanned(id: string) {
     setCannedResponses(prev => prev.filter(c => c.id !== id));
     setDeleteConfirm(null);
+  }
+
+  /* ── Automation rule editing state ── */
+  const blankCondition = (): AutomationCondition => ({ field: "age_minutes", operator: "greater_than", value: "30" });
+  const blankAction    = (): AutomationAction    => ({ type: "notify", value: "" });
+  const blankRule      = (): Omit<AutomationRule, "id"> => ({ name: "", enabled: true, conditions: [blankCondition()], actions: [blankAction()] });
+
+  const [autoEditId,    setAutoEditId]    = useState<string | null>(null); // null=closed, "new"=new
+  const [autoDraft,     setAutoDraft]     = useState<Omit<AutomationRule, "id">>(blankRule());
+  const [autoDelConfirm, setAutoDelConfirm] = useState<string | null>(null);
+
+  function openNewRule()  { setAutoDraft(blankRule()); setAutoEditId("new"); }
+  function openEditRule(r: AutomationRule) { setAutoDraft({ name: r.name, enabled: r.enabled, conditions: r.conditions, actions: r.actions }); setAutoEditId(r.id); }
+  function cancelAutoEdit() { setAutoEditId(null); }
+
+  function saveRule() {
+    if (!autoDraft.name.trim() || autoDraft.conditions.length === 0 || autoDraft.actions.length === 0) return;
+    if (autoEditId === "new") {
+      setAutomations(prev => [...prev, { ...autoDraft, id: `auto-${Date.now()}` }]);
+    } else {
+      setAutomations(prev => prev.map(r => r.id === autoEditId ? { ...r, ...autoDraft } : r));
+    }
+    setAutoEditId(null);
+  }
+
+  function deleteRule(id: string) { setAutomations(prev => prev.filter(r => r.id !== id)); setAutoDelConfirm(null); }
+
+  // Human-readable condition summary
+  function conditionSummary(c: AutomationCondition): string {
+    const opLabel: Record<string, string> = { greater_than: ">", less_than: "<", equals: "=", not_equals: "≠" };
+    if (c.field === "age_minutes") {
+      const mins = Number(c.value);
+      const label = mins >= 1440 ? `${mins / 1440}d` : mins >= 60 ? `${mins / 60}h` : `${mins}m`;
+      return `Age ${opLabel[c.operator]} ${label}`;
+    }
+    return `${c.field} ${opLabel[c.operator]} "${c.value}"`;
+  }
+
+  function actionSummary(a: AutomationAction): string {
+    if (a.type === "assign_agent") return `Assign → ${a.value === "round_robin" ? "Round robin" : a.value}`;
+    if (a.type === "change_status") return `Set status → ${a.value}`;
+    return `Notify: "${a.value.slice(0, 40)}${a.value.length > 40 ? "…" : ""}"`;
   }
 
   const inputClass = "w-full px-4 py-2.5 rounded-xl text-sm text-[#1a1c1c] outline-none focus:ring-2 focus:ring-purple-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed";
@@ -298,6 +340,325 @@ export default function SettingsPage() {
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* ── Automation Rules ── */}
+      <div className="rounded-2xl p-6 mb-5" style={cardStyle}>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-purple-100 flex items-center justify-center">
+              <Zap size={13} className="text-purple-600" />
+            </div>
+            <h2 className="text-base font-semibold text-[#1a1c1c]">Automation Rules</h2>
+            <span className="px-2 py-0.5 rounded-full text-xs font-semibold text-[#48484a]"
+              style={{ background: "var(--surface-low)" }}>{automations.length}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {!isAdmin && <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-amber-700" style={{ background: "rgba(245,158,11,0.1)" }}>🔒 Admin only</span>}
+            {isAdmin && autoEditId === null && (
+              <button onClick={openNewRule}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white gradient-primary hover:opacity-90 transition-opacity">
+                <Plus size={12} /> Add Rule
+              </button>
+            )}
+          </div>
+        </div>
+        <p className="text-xs text-[#48484a] mb-5">
+          Trigger automatic actions based on ticket conditions — assignment, notifications and status changes.
+        </p>
+
+        {/* Inline editor */}
+        {autoEditId !== null && (
+          <div className="mb-5 p-4 rounded-2xl border-2 border-purple-200" style={{ background: "var(--surface-low)" }}>
+            <p className="text-sm font-semibold text-[#1a1c1c] mb-4">
+              {autoEditId === "new" ? "New Rule" : "Edit Rule"}
+            </p>
+
+            {/* Rule name */}
+            <div className="mb-4">
+              <label className={labelClass}>Rule Name</label>
+              <input
+                value={autoDraft.name}
+                onChange={e => setAutoDraft(d => ({ ...d, name: e.target.value }))}
+                placeholder="e.g. Auto-assign unassigned tickets"
+                className={inputClass} style={{ background: "var(--surface-lowest)" }}
+              />
+            </div>
+
+            {/* Conditions */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <label className={labelClass + " mb-0"}>Conditions <span className="normal-case font-normal">(ALL must match)</span></label>
+                <button
+                  onClick={() => setAutoDraft(d => ({ ...d, conditions: [...d.conditions, blankCondition()] }))}
+                  className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 font-medium">
+                  <Plus size={11} /> Add condition
+                </button>
+              </div>
+              <div className="flex flex-col gap-2">
+                {autoDraft.conditions.map((cond, i) => (
+                  <div key={i} className="flex items-center gap-2 flex-wrap">
+                    {/* Field */}
+                    <select
+                      value={cond.field}
+                      onChange={e => setAutoDraft(d => {
+                        const conds = [...d.conditions];
+                        conds[i] = { ...conds[i], field: e.target.value as AutomationCondition["field"] };
+                        return { ...d, conditions: conds };
+                      })}
+                      className="flex-1 min-w-[120px] px-3 py-2 rounded-xl text-xs text-[#1a1c1c] outline-none focus:ring-2 focus:ring-purple-200"
+                      style={{ background: "var(--surface-lowest)" }}>
+                      <option value="age_minutes">Age (minutes)</option>
+                      <option value="agent">Agent</option>
+                      <option value="status">Status</option>
+                      <option value="priority">Priority</option>
+                    </select>
+                    {/* Operator */}
+                    <select
+                      value={cond.operator}
+                      onChange={e => setAutoDraft(d => {
+                        const conds = [...d.conditions];
+                        conds[i] = { ...conds[i], operator: e.target.value as AutomationCondition["operator"] };
+                        return { ...d, conditions: conds };
+                      })}
+                      className="flex-1 min-w-[110px] px-3 py-2 rounded-xl text-xs text-[#1a1c1c] outline-none focus:ring-2 focus:ring-purple-200"
+                      style={{ background: "var(--surface-lowest)" }}>
+                      {cond.field === "age_minutes" ? (
+                        <>
+                          <option value="greater_than">greater than</option>
+                          <option value="less_than">less than</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="equals">equals</option>
+                          <option value="not_equals">not equals</option>
+                        </>
+                      )}
+                    </select>
+                    {/* Value */}
+                    {cond.field === "status" ? (
+                      <select
+                        value={cond.value}
+                        onChange={e => setAutoDraft(d => {
+                          const conds = [...d.conditions];
+                          conds[i] = { ...conds[i], value: e.target.value };
+                          return { ...d, conditions: conds };
+                        })}
+                        className="flex-1 min-w-[110px] px-3 py-2 rounded-xl text-xs text-[#1a1c1c] outline-none focus:ring-2 focus:ring-purple-200"
+                        style={{ background: "var(--surface-lowest)" }}>
+                        {["Open", "In Progress", "On Hold", "Resolved"].map(s => <option key={s}>{s}</option>)}
+                      </select>
+                    ) : cond.field === "priority" ? (
+                      <select
+                        value={cond.value}
+                        onChange={e => setAutoDraft(d => {
+                          const conds = [...d.conditions];
+                          conds[i] = { ...conds[i], value: e.target.value };
+                          return { ...d, conditions: conds };
+                        })}
+                        className="flex-1 min-w-[110px] px-3 py-2 rounded-xl text-xs text-[#1a1c1c] outline-none focus:ring-2 focus:ring-purple-200"
+                        style={{ background: "var(--surface-lowest)" }}>
+                        {["High", "Medium", "Low"].map(p => <option key={p}>{p}</option>)}
+                      </select>
+                    ) : cond.field === "agent" ? (
+                      <select
+                        value={cond.value}
+                        onChange={e => setAutoDraft(d => {
+                          const conds = [...d.conditions];
+                          conds[i] = { ...conds[i], value: e.target.value };
+                          return { ...d, conditions: conds };
+                        })}
+                        className="flex-1 min-w-[110px] px-3 py-2 rounded-xl text-xs text-[#1a1c1c] outline-none focus:ring-2 focus:ring-purple-200"
+                        style={{ background: "var(--surface-lowest)" }}>
+                        {agentList.map(a => <option key={a}>{a}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        type="number"
+                        value={cond.value}
+                        onChange={e => setAutoDraft(d => {
+                          const conds = [...d.conditions];
+                          conds[i] = { ...conds[i], value: e.target.value };
+                          return { ...d, conditions: conds };
+                        })}
+                        placeholder="e.g. 30"
+                        className="flex-1 min-w-[80px] px-3 py-2 rounded-xl text-xs text-[#1a1c1c] outline-none focus:ring-2 focus:ring-purple-200"
+                        style={{ background: "var(--surface-lowest)" }}
+                      />
+                    )}
+                    {/* Remove condition */}
+                    {autoDraft.conditions.length > 1 && (
+                      <button
+                        onClick={() => setAutoDraft(d => ({ ...d, conditions: d.conditions.filter((_, j) => j !== i) }))}
+                        className="w-6 h-6 flex items-center justify-center rounded-lg text-[#48484a] hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
+                        <X size={11} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <label className={labelClass + " mb-0"}>Actions</label>
+                <button
+                  onClick={() => setAutoDraft(d => ({ ...d, actions: [...d.actions, blankAction()] }))}
+                  className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 font-medium">
+                  <Plus size={11} /> Add action
+                </button>
+              </div>
+              <div className="flex flex-col gap-2">
+                {autoDraft.actions.map((act, i) => (
+                  <div key={i} className="flex items-center gap-2 flex-wrap">
+                    {/* Action type */}
+                    <select
+                      value={act.type}
+                      onChange={e => setAutoDraft(d => {
+                        const acts = [...d.actions];
+                        acts[i] = { type: e.target.value as AutomationAction["type"], value: "" };
+                        return { ...d, actions: acts };
+                      })}
+                      className="flex-1 min-w-[130px] px-3 py-2 rounded-xl text-xs text-[#1a1c1c] outline-none focus:ring-2 focus:ring-purple-200"
+                      style={{ background: "var(--surface-lowest)" }}>
+                      <option value="assign_agent">Assign agent</option>
+                      <option value="notify">Notify</option>
+                      <option value="change_status">Change status</option>
+                    </select>
+                    {/* Action value */}
+                    {act.type === "assign_agent" ? (
+                      <select
+                        value={act.value}
+                        onChange={e => setAutoDraft(d => {
+                          const acts = [...d.actions];
+                          acts[i] = { ...acts[i], value: e.target.value };
+                          return { ...d, actions: acts };
+                        })}
+                        className="flex-1 min-w-[130px] px-3 py-2 rounded-xl text-xs text-[#1a1c1c] outline-none focus:ring-2 focus:ring-purple-200"
+                        style={{ background: "var(--surface-lowest)" }}>
+                        <option value="round_robin">Round robin</option>
+                        {agentList.filter(a => a !== "Unassigned").map(a => <option key={a} value={a}>{a}</option>)}
+                      </select>
+                    ) : act.type === "change_status" ? (
+                      <select
+                        value={act.value}
+                        onChange={e => setAutoDraft(d => {
+                          const acts = [...d.actions];
+                          acts[i] = { ...acts[i], value: e.target.value };
+                          return { ...d, actions: acts };
+                        })}
+                        className="flex-1 min-w-[130px] px-3 py-2 rounded-xl text-xs text-[#1a1c1c] outline-none focus:ring-2 focus:ring-purple-200"
+                        style={{ background: "var(--surface-lowest)" }}>
+                        {["Open", "In Progress", "On Hold", "Resolved"].map(s => <option key={s}>{s}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        value={act.value}
+                        onChange={e => setAutoDraft(d => {
+                          const acts = [...d.actions];
+                          acts[i] = { ...acts[i], value: e.target.value };
+                          return { ...d, actions: acts };
+                        })}
+                        placeholder='e.g. {{ticket_id}} has been open for 24h'
+                        className="flex-1 min-w-[200px] px-3 py-2 rounded-xl text-xs text-[#1a1c1c] outline-none focus:ring-2 focus:ring-purple-200"
+                        style={{ background: "var(--surface-lowest)" }}
+                      />
+                    )}
+                    {/* Remove action */}
+                    {autoDraft.actions.length > 1 && (
+                      <button
+                        onClick={() => setAutoDraft(d => ({ ...d, actions: d.actions.filter((_, j) => j !== i) }))}
+                        className="w-6 h-6 flex items-center justify-center rounded-lg text-[#48484a] hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
+                        <X size={11} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 justify-end pt-2 border-t" style={{ borderColor: "var(--border-subtle)" }}>
+              <button onClick={cancelAutoEdit}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#48484a] hover:bg-[#f3f3f3] transition-colors">
+                <X size={12} /> Cancel
+              </button>
+              <button
+                onClick={saveRule}
+                disabled={!autoDraft.name.trim() || autoDraft.conditions.length === 0 || autoDraft.actions.length === 0}
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium text-white gradient-primary hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity">
+                <Check size={12} /> Save Rule
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Rule list */}
+        <div className="flex flex-col gap-2">
+          {automations.length === 0 && autoEditId === null && (
+            <div className="text-center py-10 text-sm text-[#48484a]">No rules yet. Click <strong>Add Rule</strong> to get started.</div>
+          )}
+          {automations.map(rule => (
+            <div key={rule.id}
+              className="rounded-xl px-4 py-3 flex items-start gap-3"
+              style={{ background: "var(--surface-low)", border: autoEditId === rule.id ? "2px solid rgb(147,51,234)" : "2px solid transparent" }}>
+              {/* Toggle */}
+              <div className="pt-0.5 flex-shrink-0">
+                <Toggle
+                  on={rule.enabled}
+                  onToggle={() => {
+                    if (!isAdmin) return;
+                    setAutomations(prev => prev.map(r => r.id === rule.id ? { ...r, enabled: !r.enabled } : r));
+                  }}
+                />
+              </div>
+              {/* Content */}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[#1a1c1c] mb-1">{rule.name}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {rule.conditions.map((c, i) => (
+                    <span key={i} className="px-2 py-0.5 rounded-full text-[10px] font-medium text-blue-700"
+                      style={{ background: "rgba(59,130,246,0.1)" }}>
+                      IF {conditionSummary(c)}
+                    </span>
+                  ))}
+                  {rule.actions.map((a, i) => (
+                    <span key={i} className="px-2 py-0.5 rounded-full text-[10px] font-medium text-purple-700"
+                      style={{ background: "rgba(147,51,234,0.1)" }}>
+                      THEN {actionSummary(a)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              {/* Actions — admin only */}
+              {isAdmin && (
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button onClick={() => openEditRule(rule)}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-[#48484a] hover:text-purple-600 hover:bg-purple-50 transition-colors">
+                    <Pencil size={13} />
+                  </button>
+                  {autoDelConfirm === rule.id ? (
+                    <>
+                      <button onClick={() => deleteRule(rule.id)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-red-600 hover:bg-red-50 transition-colors">
+                        <Check size={13} />
+                      </button>
+                      <button onClick={() => setAutoDelConfirm(null)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-[#48484a] hover:bg-[#f3f3f3] transition-colors">
+                        <X size={13} />
+                      </button>
+                    </>
+                  ) : (
+                    <button onClick={() => setAutoDelConfirm(rule.id)}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-[#48484a] hover:text-red-500 hover:bg-red-50 transition-colors">
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 

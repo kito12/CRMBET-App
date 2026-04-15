@@ -97,6 +97,54 @@ export const defaultSLAPolicies: SLAPolicies = {
   Low:    { firstReplyMinutes: 60, resolutionMinutes: 4320  }, // 1 h reply, 72 h resolution
 };
 
+// ── Automation Rules ──────────────────────────────────────────────────────────
+
+export type AutomationConditionField    = "age_minutes" | "agent" | "status" | "priority";
+export type AutomationConditionOperator = "greater_than" | "less_than" | "equals" | "not_equals";
+export type AutomationActionType        = "assign_agent" | "notify" | "change_status";
+
+export interface AutomationCondition {
+  field:    AutomationConditionField;
+  operator: AutomationConditionOperator;
+  value:    string;
+}
+
+export interface AutomationAction {
+  type:  AutomationActionType;
+  value: string; // agent name | "round_robin" | status string | notification text
+}
+
+export interface AutomationRule {
+  id:         string;
+  name:       string;
+  enabled:    boolean;
+  conditions: AutomationCondition[];
+  actions:    AutomationAction[];
+}
+
+export const defaultAutomations: AutomationRule[] = [
+  {
+    id:      "auto-assign-unassigned",
+    name:    "Auto-assign unassigned tickets",
+    enabled: true,
+    conditions: [
+      { field: "agent",       operator: "equals",       value: "Unassigned" },
+      { field: "age_minutes", operator: "greater_than", value: "30"         },
+    ],
+    actions: [{ type: "assign_agent", value: "round_robin" }],
+  },
+  {
+    id:      "stale-ticket-alert",
+    name:    "Stale open ticket — supervisor alert",
+    enabled: true,
+    conditions: [
+      { field: "status",      operator: "equals",       value: "Open" },
+      { field: "age_minutes", operator: "greater_than", value: "1440" },
+    ],
+    actions: [{ type: "notify", value: "{{ticket_id}} has been open for over 24 h with no reply" }],
+  },
+];
+
 export const defaultEscalationSettings: EscalationSettings = {
   enabled: true,
   thresholdHours: 4,
