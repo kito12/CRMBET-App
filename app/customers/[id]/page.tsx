@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
-import type { Ticket, TicketPriority, TicketStatus, CustomerStatus } from "@/lib/data";
+import type { Ticket, TicketPriority, TicketStatus, CustomerStatus, AccountType } from "@/lib/data";
 import { useData } from "@/components/DataProvider";
 import { StatusPill, PriorityPill } from "@/components/ui/StatusPill";
-import { ArrowLeft, Mail, Phone, Globe, Calendar, Ticket as TicketIcon, AlertCircle, CheckCircle2, Plus } from "lucide-react";
+import { ArrowLeft, Mail, Phone, Globe, Calendar, Ticket as TicketIcon, AlertCircle, CheckCircle2, Plus, Edit2 } from "lucide-react";
 import TicketDetailModal from "@/components/tickets/TicketDetailModal";
 import Modal from "@/components/ui/Modal";
 import { InputField, SelectField, TextareaField } from "@/components/ui/FormField";
@@ -31,13 +31,21 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [customerStatus, setCustomerStatus] = useState<CustomerStatus>(customer?.status ?? "Active");
   const [statusToast, setStatusToast] = useState(false);
-
-  if (!customer) return null;
   const [newTicketOpen, setNewTicketOpen] = useState(false);
   const [ticketForm, setTicketForm] = useState({
     issue: "Withdrawal Issue", priority: "Medium" as TicketPriority,
     agent: "Unassigned", description: "",
   });
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: customer?.name ?? "",
+    email: customer?.email ?? "",
+    phone: customer?.phone ?? "",
+    country: customer?.country ?? "",
+    accountType: customer?.accountType ?? "Standard" as AccountType,
+  });
+
+  if (!customer) return null;
 
   const agents = ["Unassigned", "Sarah K.", "James R.", "Tom H.", "Mia S.", "Daniel P.", "Omar K.", "Yuki T."];
 
@@ -46,6 +54,12 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
     setCustomers(prev => prev.map(c => c.clientId === id ? { ...c, status: s } : c));
     setStatusToast(true);
     setTimeout(() => setStatusToast(false), 2000);
+  }
+
+  function handleEditSave(e: React.FormEvent) {
+    e.preventDefault();
+    setCustomers(prev => prev.map(c => c.clientId === id ? { ...c, ...editForm } : c));
+    setEditOpen(false);
   }
 
   function handleCreateTicket(e: React.FormEvent) {
@@ -114,6 +128,11 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
                         style={{ background: "#1a1c1c" }}>Status updated</span>
                     )}
                   </div>
+                  <button onClick={() => setEditOpen(true)}
+                    className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-[#48484a] hover:bg-[#f3f3f3] transition-colors flex-shrink-0"
+                    style={{ background: "var(--surface-low)" }}>
+                    <Edit2 size={12} /> Edit
+                  </button>
                 </div>
                 <div className="flex items-center gap-1.5 mb-4 group/id">
                   <p className="text-label-caps text-purple-600">{customer.clientId}</p>
@@ -226,6 +245,71 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
             </div>
           )}
 
+          {/* Activity timeline */}
+          {(() => {
+            function parseTs(ts: string): number {
+              try {
+                const m = ts.match(/^(\w{3})\s+(\d+),\s+(\d{2}):(\d{2})$/);
+                if (!m) return 0;
+                const months: Record<string, number> = { Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11 };
+                const d = new Date(new Date().getFullYear(), months[m[1]], +m[2], +m[3], +m[4]);
+                if (d > new Date()) d.setFullYear(d.getFullYear() - 1);
+                return d.getTime();
+              } catch { return 0; }
+            }
+
+            const events = clientTickets
+              .flatMap(t => (t.auditLog ?? []).map(e => ({ ...e, ticketId: t.id })))
+              .sort((a, b) => parseTs(b.timestamp) - parseTs(a.timestamp))
+              .slice(0, 8);
+
+            if (events.length === 0) return null;
+
+            const dotColor: Record<string, string> = {
+              created: "bg-purple-400",
+              status_changed: "bg-blue-400",
+              agent_changed: "bg-indigo-400",
+              escalated: "bg-amber-400",
+              priority_changed: "bg-orange-400",
+              note_added: "bg-slate-400",
+            };
+
+            function label(e: typeof events[0]): string {
+              switch (e.action) {
+                case "created":         return `${e.ticketId} opened`;
+                case "status_changed":  return `${e.ticketId} → ${e.to}`;
+                case "agent_changed":   return `${e.ticketId} assigned to ${e.to}`;
+                case "escalated":       return `${e.ticketId} escalated to ${e.to}`;
+                case "priority_changed":return `${e.ticketId} priority → ${e.to}`;
+                case "note_added":      return `Note added to ${e.ticketId}`;
+                default:                return e.ticketId;
+              }
+            }
+
+            return (
+              <div className="rounded-2xl p-6" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
+                <p className="text-label-caps text-[#48484a] mb-1">History</p>
+                <h3 className="text-base font-semibold text-[#1a1c1c] tracking-tight mb-4">Activity</h3>
+                <div className="flex flex-col gap-0">
+                  {events.map((e, i) => (
+                    <div key={e.id} className="flex items-start gap-3 relative">
+                      {/* Vertical line */}
+                      {i < events.length - 1 && (
+                        <div className="absolute left-[5px] top-4 bottom-0 w-px" style={{ background: "var(--surface-low)" }} />
+                      )}
+                      <span className={`mt-1 flex-shrink-0 w-3 h-3 rounded-full border-2 border-white ${dotColor[e.action] ?? "bg-slate-400"}`}
+                        style={{ borderColor: "var(--surface-lowest)" }} />
+                      <div className="pb-4 min-w-0">
+                        <p className="text-sm text-[#1a1c1c] leading-snug">{label(e)}</p>
+                        <p className="text-xs text-[#48484a]">{e.author} · {e.timestamp}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Quick actions */}
           <div className="rounded-2xl p-6" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
             <p className="text-label-caps text-[#48484a] mb-4">Actions</p>
@@ -289,6 +373,32 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
             <button type="submit"
               className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white gradient-primary hover:opacity-90 transition-opacity">
               Create Ticket
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit Profile Modal */}
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Profile" subtitle={`${customer.clientId} · ${customer.accountType}`}>
+        <form onSubmit={handleEditSave} className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-4">
+            <InputField label="Full Name" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required />
+            <InputField label="Email" type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} required />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <InputField label="Phone Number" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} required />
+            <InputField label="Country" value={editForm.country} onChange={(e) => setEditForm({ ...editForm, country: e.target.value })} required />
+          </div>
+          <SelectField label="Account Type" value={editForm.accountType} onChange={(e) => setEditForm({ ...editForm, accountType: e.target.value as AccountType })}>
+            {(["Standard", "Premium", "VIP"] as AccountType[]).map(t => <option key={t}>{t}</option>)}
+          </SelectField>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={() => setEditOpen(false)}
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium text-[#48484a]"
+              style={{ background: "var(--surface-low)" }}>Cancel</button>
+            <button type="submit"
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white gradient-primary hover:opacity-90 transition-opacity">
+              Save Changes
             </button>
           </div>
         </form>

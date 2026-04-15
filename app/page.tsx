@@ -1,21 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { Clock, CheckCircle2, AlertCircle, TrendingUp, Users, ArrowRight, Zap, X } from "lucide-react";
 import Link from "next/link";
 import { useData } from "@/components/DataProvider";
 import { SkeletonCard, SkeletonTableRow, SkeletonLine } from "@/components/ui/Skeleton";
 import type { Ticket, TicketPriority, TicketStatus } from "@/lib/data";
-
-// ─── Static activity feed ────────────────────────────────────────────────────
-const BASE_FEED = [
-  { text: "TKT-1041 escalated to Tier 2",           time: "2m ago",  dot: "bg-amber-400" },
-  { text: "Sarah K. resolved TKT-1038",              time: "2h ago",  dot: "bg-emerald-400" },
-  { text: "New high-priority ticket from Leo F.",    time: "28m ago", dot: "bg-red-400" },
-  { text: "Avg response dipped below SLA",           time: "1h ago",  dot: "bg-purple-400" },
-  { text: "James R. came online",                    time: "3h ago",  dot: "bg-blue-400" },
-];
 
 // ─── Random ticket generator ─────────────────────────────────────────────────
 const ISSUES    = ["Withdrawal Issue", "Bet Settlement", "Account Access", "Bonus Dispute", "Live Betting"];
@@ -93,7 +84,7 @@ export default function Dashboard() {
   const { tickets, setTickets, customers, hydrated } = useData();
   const [liveMode, setLiveMode]   = useState(false);
   const [toast, setToast]         = useState<Ticket | null>(null);
-  const [feed, setFeed]           = useState(BASE_FEED);
+  const [liveItems, setLiveItems] = useState<{ text: string; relTime: string; dot: string; rawTs: number }[]>([]);
   const liveRef = useRef(liveMode);
   liveRef.current = liveMode;
 
@@ -121,6 +112,78 @@ export default function Dashboard() {
     sorted.slice(i * chunkSize, (i + 1) * chunkSize).length
   );
 
+  // Computed feed from real ticket audit logs
+  const computedFeed = useMemo(() => {
+    type FeedItem = { text: string; relTime: string; dot: string; rawTs: number };
+    const now = Date.now();
+    const events: FeedItem[] = [];
+
+    function parseTs(ts: string): number {
+      try {
+        const m = ts.match(/^(\w{3})\s+(\d+),\s+(\d{2}):(\d{2})$/);
+        if (!m) return 0;
+        const months: Record<string, number> = { Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11 };
+        const d = new Date(new Date().getFullYear(), months[m[1]], +m[2], +m[3], +m[4]);
+        if (d > new Date()) d.setFullYear(d.getFullYear() - 1);
+        return d.getTime();
+      } catch { return 0; }
+    }
+
+    function relTime(ms: number): string {
+      const diff = Math.floor((now - ms) / 60000);
+      if (diff < 1) return "just now";
+      if (diff < 60) return `${diff}m ago`;
+      const h = Math.floor(diff / 60);
+      if (h < 24) return `${h}h ago`;
+      return `${Math.floor(h / 24)}d ago`;
+    }
+
+    tickets.forEach(ticket => {
+      (ticket.auditLog ?? []).forEach(entry => {
+        let text = "";
+        let dot = "bg-slate-400";
+        switch (entry.action) {
+          case "created":
+            text = `${ticket.id} opened for ${ticket.customer}`;
+            dot = ticket.priority === "High" ? "bg-red-400" : "bg-purple-400";
+            break;
+          case "status_changed":
+            text = `${ticket.id} marked ${entry.to} by ${entry.author}`;
+            dot = entry.to === "Resolved" ? "bg-emerald-400" : "bg-blue-400";
+            break;
+          case "agent_changed":
+            text = `${ticket.id} reassigned to ${entry.to}`;
+            dot = "bg-purple-400";
+            break;
+          case "escalated":
+            text = `${ticket.id} escalated to ${entry.to}`;
+            dot = "bg-amber-400";
+            break;
+          case "priority_changed":
+            text = `${ticket.id} priority → ${entry.to}`;
+            dot = "bg-orange-400";
+            break;
+        }
+        if (text) {
+          const rawTs = parseTs(entry.timestamp);
+          events.push({ text, relTime: relTime(rawTs), dot, rawTs });
+        }
+      });
+      // Fallback for tickets with no auditLog: show ticket creation
+      if (!ticket.auditLog?.length) {
+        const rawTs = parseTs(ticket.created);
+        events.push({
+          text: `${ticket.id} created for ${ticket.customer}`,
+          relTime: relTime(rawTs),
+          dot: ticket.priority === "High" ? "bg-red-400" : "bg-purple-400",
+          rawTs,
+        });
+      }
+    });
+
+    return events.sort((a, b) => b.rawTs - a.rawTs).slice(0, 8);
+  }, [tickets]);
+
   // Live simulation
   useEffect(() => {
     if (!liveMode) return;
@@ -139,12 +202,19 @@ export default function Dashboard() {
           status: "Open" as TicketStatus, agent: "Unassigned", created: nowLabel(),
         };
         setToast(newTicket);
-        setFeed(f => [{ text: `New ticket ${newTicket.id} from ${c.name}`, time: "just now", dot: priority === "High" ? "bg-red-400" : "bg-purple-400" }, ...f.slice(0, 4)]);
+        setLiveItems(prev => [{
+          text: `New ticket ${newTicket.id} from ${c.name}`,
+          relTime: "just now",
+          dot: priority === "High" ? "bg-red-400" : "bg-purple-400",
+          rawTs: Date.now()
+        }, ...prev].slice(0, 4));
         return [newTicket, ...prev];
       });
     }, 12000);
     return () => clearInterval(id);
   }, [liveMode, customers, setTickets]);
+
+  const displayFeed = [...liveItems, ...computedFeed].slice(0, 8);
 
   return (
     <div className="max-w-[1400px] mx-auto">
@@ -340,15 +410,18 @@ export default function Dashboard() {
               )}
             </div>
             <div className="flex flex-col gap-3">
-              {feed.map((item, i) => (
-                <div key={i} className={`flex items-start gap-3 ${i === 0 && liveMode && feed[0].time === "just now" ? "slide-in" : ""}`}>
+              {displayFeed.map((item, i) => (
+                <div key={i} className={`flex items-start gap-3 ${i === 0 && liveMode && liveItems.length > 0 ? "slide-in" : ""}`}>
                   <span className={`mt-1.5 flex-shrink-0 w-1.5 h-1.5 rounded-full ${item.dot}`} />
                   <div>
                     <p className="text-sm text-[#1a1c1c] leading-relaxed">{item.text}</p>
-                    <p className="text-xs text-[#48484a]">{item.time}</p>
+                    <p className="text-xs text-[#48484a]">{item.relTime}</p>
                   </div>
                 </div>
               ))}
+              {displayFeed.length === 0 && (
+                <p className="text-sm text-[#48484a] text-center py-4">No activity yet.</p>
+              )}
             </div>
           </div>
         </div>
