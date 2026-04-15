@@ -5,6 +5,9 @@ import { StatusPill } from "@/components/ui/StatusPill";
 import { Clock, CheckCircle2, AlertCircle, TrendingUp, Users, ArrowRight, Zap, X } from "lucide-react";
 import Link from "next/link";
 import { useData } from "@/components/DataProvider";
+import { useAuth } from "@/components/AuthProvider";
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { SkeletonCard, SkeletonTableRow, SkeletonLine } from "@/components/ui/Skeleton";
 import type { Ticket, TicketPriority, TicketStatus } from "@/lib/data";
 
@@ -82,11 +85,20 @@ function LiveToast({ ticket, onDismiss }: { ticket: Ticket; onDismiss: () => voi
 // ─── Main dashboard ───────────────────────────────────────────────────────────
 export default function Dashboard() {
   const { tickets, setTickets, customers, hydrated } = useData();
+  const { user: currentUser } = useAuth();
+  const [agentCount, setAgentCount] = useState(0);
   const [liveMode, setLiveMode]   = useState(false);
   const [toast, setToast]         = useState<Ticket | null>(null);
   const [liveItems, setLiveItems] = useState<{ text: string; relTime: string; dot: string; rawTs: number }[]>([]);
   const liveRef = useRef(liveMode);
   liveRef.current = liveMode;
+
+  // Real agent count from Firestore users collection
+  useEffect(() => {
+    return onSnapshot(collection(db, "users"), snap => {
+      setAgentCount(snap.size);
+    });
+  }, []);
 
   // Computed stats
   const openCount     = tickets.filter(t => t.status === "Open").length;
@@ -356,8 +368,8 @@ export default function Dashboard() {
             {!hydrated ? (
               <><SkeletonCard /><SkeletonCard /></>
             ) : [
-              { icon: Users,      label: "ACTIVE AGENTS", value: "12", sub: "of 18 online",       color: "text-purple-600", bg: "bg-purple-50", href: "/users" },
-              { icon: TrendingUp, label: "CSAT SCORE",    value: "94%", sub: "↑ 2pts this week",  color: "text-blue-600",   bg: "bg-blue-50",   href: "/analytics" },
+              { icon: Users,      label: "TEAM",       value: String(agentCount), sub: agentCount === 1 ? "agent registered" : "agents registered", color: "text-purple-600", bg: "bg-purple-50", href: "/users" },
+              { icon: TrendingUp, label: "CSAT SCORE", value: "--",               sub: "no data yet",                                                                  color: "text-blue-600",   bg: "bg-blue-50",   href: "/analytics" },
             ].map(({ icon: Icon, label, value, sub, color, bg, href }) => (
               <Link key={label} href={href}
                 className="rounded-2xl p-5 group transition-all duration-150 hover:scale-[1.02] hover:shadow-md cursor-pointer"
