@@ -207,11 +207,12 @@ export default function Dashboard() {
       const priority = PRIOS[Math.floor(Math.random() * PRIOS.length)];
 
       setTickets(prev => {
-        const maxNum = Math.max(...prev.map(t => parseInt(t.id.replace("TKT-", ""))));
+        const now = new Date();
         const newTicket: Ticket = {
-          id: `TKT-${maxNum + 1}`, clientId: c.clientId, customer: c.name,
+          id: `TKT-${now.getTime()}`, clientId: c.clientId, customer: c.name,
           email: c.email, phone: c.phone, issue, priority,
-          status: "Open" as TicketStatus, agent: "Unassigned", created: nowLabel(),
+          status: "Open" as TicketStatus, agent: "Unassigned",
+          created: nowLabel(), createdAt: now.toISOString(),
         };
         setToast(newTicket);
         setLiveItems(prev => [{

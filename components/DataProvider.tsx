@@ -57,6 +57,15 @@ function parseCreatedMs(created: string): number {
   } catch { return 0; }
 }
 
+// Use ISO timestamp when available for accurate cross-timezone SLA calculations
+function ticketAgeMs(t: { created: string; createdAt?: string }, now: number): number {
+  if (t.createdAt) {
+    const d = new Date(t.createdAt);
+    return isNaN(d.getTime()) ? 0 : now - d.getTime();
+  }
+  return now - parseCreatedMs(t.created);
+}
+
 // Diff two arrays and write only changed/new/deleted docs to Firestore
 // keyFn extracts the Firestore doc ID from an item (default: item.id)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -226,7 +235,7 @@ export default function DataProvider({ children }: { children: React.ReactNode }
         let changed = false;
         const updated = prev.map(t => {
           if (t.status === "Resolved" || t.status === "On Hold" || t.escalated) return t;
-          const ageMs    = now - parseCreatedMs(t.created);
+          const ageMs    = ticketAgeMs(t, now);
           const ageHours = ageMs / 3_600_000;
           const ageMin   = ageMs / 60_000;
 

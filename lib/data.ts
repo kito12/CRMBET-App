@@ -43,7 +43,8 @@ export interface Ticket {
   priority: TicketPriority;
   status: TicketStatus;
   agent: string;
-  created: string;
+  created: string;       // human-readable label (local time at creation)
+  createdAt?: string;    // ISO 8601 — for accurate cross-timezone display & sorting
   description?: string;
   headOfficeUrl?: string;
   notes?: Note[];

@@ -60,6 +60,7 @@ export default function SubmitPage() {
       // Generate a unique ticket ID using timestamp
       const newId = `TKT-${Date.now()}`;
 
+      const now = new Date();
       await setDoc(doc(db, "tickets", newId), {
         id:          newId,
         clientId:    form.clientId.trim() || "—",
@@ -71,6 +72,7 @@ export default function SubmitPage() {
         status:      "Open",
         agent:       "Unassigned",
         created:     nowLabel(),
+        createdAt:   now.toISOString(),
         description: form.description.trim(),
         source:      "web_form",
       });

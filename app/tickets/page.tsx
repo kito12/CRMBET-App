@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import type { Ticket, TicketPriority, TicketStatus, AuditEntry } from "@/lib/data";
 import { useData } from "@/components/DataProvider";
 import { StatusPill, PriorityPill } from "@/components/ui/StatusPill";
@@ -13,22 +15,37 @@ import KanbanBoard from "@/components/tickets/KanbanBoard";
 import { SkeletonTableRow } from "@/components/ui/Skeleton";
 
 const statusFilters = ["All", "Open", "In Progress", "Resolved", "On Hold"] as const;
-const agents = ["Unassigned", "Sarah K.", "James R.", "Tom H.", "Mia S.", "Daniel P.", "Omar K.", "Yuki T."];
 const CURRENT_AGENT = "Sarah K.";
 const agentViews = ["All", "Mine", "Unassigned"] as const;
 type AgentView = typeof agentViews[number];
 type DateRange = "all" | "today" | "yesterday" | "7d" | "30d";
 const ITEMS_PER_PAGE = 10;
 
-function parseTicketDate(created: string): Date | null {
+function parseTicketDate(ticket: Ticket): Date | null {
   try {
-    const m = created.match(/^(\w{3})\s+(\d+),\s+(\d{2}):(\d{2})$/);
+    // Prefer ISO timestamp (accurate, timezone-aware)
+    if (ticket.createdAt) {
+      const d = new Date(ticket.createdAt);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    // Fall back to parsing the display label
+    const m = ticket.created.match(/^(\w{3})\s+(\d+),\s+(\d{2}):(\d{2})$/);
     if (!m) return null;
     const months: Record<string, number> = { Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11 };
     const d = new Date(new Date().getFullYear(), months[m[1]], +m[2], +m[3], +m[4]);
     if (d > new Date()) d.setFullYear(d.getFullYear() - 1);
     return d;
   } catch { return null; }
+}
+
+// Format a ticket's timestamp in the viewer's local timezone
+function formatCreated(ticket: Ticket): string {
+  if (ticket.createdAt) {
+    const d = new Date(ticket.createdAt);
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return `${months[d.getMonth()]} ${d.getDate()}, ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  }
+  return ticket.created;
 }
 
 function getDateBounds(range: DateRange): { from: Date; to: Date } | null {
@@ -49,23 +66,28 @@ const emptyForm = {
 };
 
 // SLA dot color for open tickets
-function getSLADotClass(created: string, status: TicketStatus): string {
-  if (status === "Resolved" || status === "On Hold") return "bg-emerald-400";
-  try {
-    const m = created.match(/^(\w{3})\s+(\d+),\s+(\d{2}):(\d{2})$/);
-    if (!m) return "bg-slate-300";
-    const months: Record<string, number> = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
-    const d = new Date(new Date().getFullYear(), months[m[1]], +m[2], +m[3], +m[4]);
-    if (d > new Date()) d.setFullYear(d.getFullYear() - 1);
-    const mins = Math.floor((Date.now() - d.getTime()) / 60000);
-    if (mins < 10)  return "bg-emerald-400";
-    if (mins < 30)  return "bg-amber-400";
-    return "bg-red-400";
-  } catch { return "bg-slate-300"; }
+function getSLADotClass(ticket: Ticket): string {
+  if (ticket.status === "Resolved" || ticket.status === "On Hold") return "bg-emerald-400";
+  const d = parseTicketDate(ticket);
+  if (!d) return "bg-slate-300";
+  const mins = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (mins < 10)  return "bg-emerald-400";
+  if (mins < 30)  return "bg-amber-400";
+  return "bg-red-400";
 }
 
 export default function TicketsPage() {
   const { tickets, setTickets, customers, hydrated } = useData();
+  const [agentList, setAgentList] = useState<string[]>(["Unassigned"]);
+
+  // Live agents from Firestore
+  useEffect(() => {
+    return onSnapshot(collection(db, "users"), snap => {
+      const names = snap.docs.map(d => d.data().name as string).filter(Boolean).sort();
+      setAgentList(["Unassigned", ...names]);
+    });
+  }, []);
+
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState<string>("All");
   const [modalOpen, setModalOpen] = useState(false);
@@ -137,7 +159,7 @@ export default function TicketsPage() {
     const matchesAgentFilter = agentFilter === "all" || t.agent === agentFilter;
     const matchesDate = (() => {
       if (!dateBounds) return true;
-      const d = parseTicketDate(t.created);
+      const d = parseTicketDate(t);
       if (!d) return true;
       return d >= dateBounds.from && d <= dateBounds.to;
     })();
@@ -185,12 +207,14 @@ export default function TicketsPage() {
     const now = new Date();
     const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     const label = `${months[now.getMonth()]} ${now.getDate()}, ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
-    const nextNum = Math.max(...tickets.map(t => parseInt(t.id.replace("TKT-", "")))) + 1;
+    const newId = `TKT-${Date.now()}`;
     const createdEntry: AuditEntry = { id: `a-create-${Date.now()}`, action: "created", author: "You", timestamp: label };
     setTickets(prev => [{
-      id: `TKT-${nextNum}`, clientId: form.clientId || "—", customer: form.customer,
+      id: newId, clientId: form.clientId || "—", customer: form.customer,
       email: form.email, phone: form.phone, issue: form.issue, priority: form.priority,
-      status: "Open" as TicketStatus, agent: form.agent, created: label, description: form.description,
+      status: "Open" as TicketStatus, agent: form.agent,
+      created: label, createdAt: now.toISOString(),
+      description: form.description, source: "agent",
       auditLog: [createdEntry],
     }, ...prev]);
     setForm(emptyForm); setErrors({}); setModalOpen(false);
@@ -316,7 +340,7 @@ export default function TicketsPage() {
                 className="px-3 py-1.5 rounded-lg text-xs font-medium outline-none focus:ring-2 focus:ring-purple-200 transition-all"
                 style={{ background: "var(--surface-lowest)" }}>
                 <option value="all">All Agents</option>
-                {agents.map(a => <option key={a} value={a}>{a}</option>)}
+                {agentList.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             </div>
 
@@ -372,8 +396,8 @@ export default function TicketsPage() {
             <div className="flex items-center justify-between">
               <span className="text-xs text-[#48484a]">{ticket.agent}</span>
               <div className="flex items-center gap-1.5">
-                <span className={`w-1.5 h-1.5 rounded-full ${getSLADotClass(ticket.created, ticket.status)}`} />
-                <span className="text-xs text-[#48484a]">{ticket.created}</span>
+                <span className={`w-1.5 h-1.5 rounded-full ${getSLADotClass(ticket)}`} />
+                <span className="text-xs text-[#48484a]">{formatCreated(ticket)}</span>
               </div>
             </div>
           </div>
@@ -431,8 +455,8 @@ export default function TicketsPage() {
               <StatusPill status={ticket.status} />
               <span className="text-sm text-[#48484a]">{ticket.agent}</span>
               <div className="flex items-center gap-1.5">
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getSLADotClass(ticket.created, ticket.status)}`} />
-                <span className="text-xs text-[#48484a]">{ticket.created}</span>
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getSLADotClass(ticket)}`} />
+                <span className="text-xs text-[#48484a]">{formatCreated(ticket)}</span>
               </div>
               {/* Quick resolve */}
               <div className="flex items-center justify-center">
@@ -514,7 +538,7 @@ export default function TicketsPage() {
             </SelectField>
           </div>
           <SelectField label="Assign Agent" value={form.agent} onChange={(e) => setForm({ ...form, agent: e.target.value })}>
-            {agents.map(a => <option key={a}>{a}</option>)}
+            {agentList.map(a => <option key={a}>{a}</option>)}
           </SelectField>
           <TextareaField label="Description" placeholder="Describe the issue..." value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })} />
