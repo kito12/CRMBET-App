@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { Ticket, TicketPriority, TicketStatus, CustomerStatus, AccountType } from "@/lib/data";
 import { useData } from "@/components/DataProvider";
 import { StatusPill, PriorityPill } from "@/components/ui/StatusPill";
-import { ArrowLeft, Mail, Phone, Globe, Calendar, Ticket as TicketIcon, AlertCircle, CheckCircle2, Plus, Edit2 } from "lucide-react";
+import { ArrowLeft, Mail, Phone, Globe, Calendar, Ticket as TicketIcon, AlertCircle, CheckCircle2, Plus, Edit2, ShieldAlert } from "lucide-react";
 import TicketDetailModal from "@/components/tickets/TicketDetailModal";
 import Modal from "@/components/ui/Modal";
 import { InputField, SelectField, TextareaField } from "@/components/ui/FormField";
@@ -47,6 +47,23 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
     accountType: customer?.accountType ?? "Standard" as AccountType,
   });
 
+  // Keep local status in sync when Firestore updates the customer
+  useEffect(() => {
+    if (customer?.status) setCustomerStatus(customer.status);
+  }, [customer?.status]);
+
+  // Keep edit form in sync when Firestore updates the customer
+  useEffect(() => {
+    if (!customer) return;
+    setEditForm({
+      name: customer.name ?? "",
+      email: customer.email ?? "",
+      phone: customer.phone ?? "",
+      country: customer.country ?? "",
+      accountType: customer.accountType ?? "Standard",
+    });
+  }, [customer?.name, customer?.email, customer?.phone, customer?.country, customer?.accountType]);
+
   // Live agents from Firestore
   const [agents, setAgents] = useState<string[]>(["Unassigned"]);
   useEffect(() => {
@@ -77,12 +94,22 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
     const now = new Date();
     const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     const label = `${months[now.getMonth()]} ${now.getDate()}, ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
-    const nextNum = Math.max(...tickets.map(t => parseInt(t.id.replace("TKT-","")))) + 1;
+    const newId = `TKT-${Date.now()}`;
+    const isManual = ticketForm.agent !== "Unassigned";
     setTickets(prev => [{
-      id: `TKT-${nextNum}`, clientId: customer.clientId, customer: customer.name,
-      email: customer.email, phone: customer.phone, issue: ticketForm.issue,
-      priority: ticketForm.priority, status: "Open" as TicketStatus,
-      agent: ticketForm.agent, created: label, description: ticketForm.description,
+      id: newId,
+      clientId: customer.clientId,
+      customer: customer.name,
+      email: customer.email,
+      phone: customer.phone,
+      issue: ticketForm.issue,
+      priority: ticketForm.priority,
+      status: "Open" as TicketStatus,
+      agent: ticketForm.agent,
+      created: label,
+      createdAt: now.toISOString(),
+      description: ticketForm.description,
+      ...(isManual ? { manualAgent: true } : {}),
     }, ...prev]);
     setNewTicketOpen(false);
     setTicketForm({ issue: "Withdrawal Issue", priority: "Medium", agent: "Unassigned", description: "" });
@@ -107,6 +134,28 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
       <Link href="/customers" className="inline-flex items-center gap-1.5 text-sm text-[#48484a] hover:text-[#1a1c1c] transition-colors mb-6">
         <ArrowLeft size={14} /> Back to Customers
       </Link>
+
+      {/* Risk banner for suspended/high-risk customers */}
+      {customerStatus === "Suspended" && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl mb-5 border border-red-200"
+          style={{ background: "rgba(254,226,226,0.5)" }}>
+          <ShieldAlert size={16} className="text-red-500 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-red-700">Account Suspended</p>
+            <p className="text-xs text-red-600">This customer's account is currently suspended. Review open tickets carefully before taking action.</p>
+          </div>
+        </div>
+      )}
+      {customer.accountType === "VIP" && customerStatus === "Active" && openCount > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl mb-5 border border-purple-200"
+          style={{ background: "rgba(237,233,254,0.5)" }}>
+          <ShieldAlert size={16} className="text-purple-500 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-purple-700">VIP Customer · {openCount} open {openCount === 1 ? "ticket" : "tickets"}</p>
+            <p className="text-xs text-purple-600">Prioritise resolution — VIP clients expect fast response times.</p>
+          </div>
+        </div>
+      )}
 
       {/* 60/40 layout */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
@@ -181,29 +230,26 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
               <p className="text-sm text-[#48484a] py-8 text-center">No tickets yet.</p>
             ) : (
               <div className="flex flex-col gap-2">
-                {/* Column headers */}
-                <div className="grid grid-cols-[0.9fr_1.2fr_0.9fr_0.8fr_1fr] gap-3 px-3 mb-1">
-                  {["TICKET", "ISSUE", "PRIORITY", "STATUS", "AGENT"].map(h => (
-                    <span key={h} className="text-label-caps text-[#48484a]">{h}</span>
-                  ))}
-                </div>
                 {clientTickets.map((ticket) => (
                   <div
                     key={ticket.id}
                     onClick={() => setSelectedTicket(ticket)}
-                    className="grid grid-cols-[0.9fr_1.2fr_0.9fr_0.8fr_1fr] gap-3 items-center px-3 py-3 rounded-xl transition-all duration-150 cursor-pointer"
+                    className="flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-150 cursor-pointer"
                     style={{ background: "var(--surface-low)" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-lowest)")}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(139,92,246,0.06)")}
                     onMouseLeave={(e) => (e.currentTarget.style.background = "var(--surface-low)")}
                   >
-                    <div>
-                      <p className="text-sm font-medium text-purple-600">{ticket.id}</p>
-                      <p className="text-xs text-[#48484a]">{ticket.created}</p>
+                    {/* ID + date stacked */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-purple-600 truncate">{ticket.id}</p>
+                      <p className="text-xs text-[#48484a] truncate mt-0.5">{ticket.issue}</p>
                     </div>
-                    <span className="text-sm text-[#48484a]">{ticket.issue}</span>
-                    <PriorityPill priority={ticket.priority} />
-                    <StatusPill status={ticket.status} />
-                    <span className="text-sm text-[#48484a]">{ticket.agent}</span>
+                    {/* Pills + agent */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <PriorityPill priority={ticket.priority} />
+                      <StatusPill status={ticket.status} />
+                      <span className="hidden sm:block text-xs text-[#48484a] max-w-[80px] truncate">{ticket.agent}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -331,7 +377,9 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
                 className="w-full py-2.5 rounded-xl text-sm font-medium text-white gradient-primary text-center hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5">
                 <Plus size={13} /> New Ticket for this Client
               </button>
-              <button className="w-full py-2.5 rounded-xl text-sm font-medium text-[#48484a] transition-colors hover:bg-[#f3f3f3]"
+              <button
+                onClick={() => window.open(`mailto:${customer.email}?subject=Support - ${customer.clientId}`, "_blank")}
+                className="w-full py-2.5 rounded-xl text-sm font-medium text-[#48484a] transition-colors hover:bg-[#f3f3f3]"
                 style={{ background: "var(--surface-low)" }}>
                 Send Email
               </button>
@@ -348,7 +396,7 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
         ticket={selectedTicket}
         onClose={() => setSelectedTicket(null)}
         onSave={(updated) => {
-          setTickets(prev => prev.map(t => t.id === updated.id ? updated : t));
+          setTickets(prev => prev.map(t => t.id === updated.id ? { ...updated, manualAgent: true } : t));
           setSelectedTicket(null);
         }}
       />
