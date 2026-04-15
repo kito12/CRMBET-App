@@ -193,21 +193,26 @@ export default function Dashboard() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {[
-                  { icon: AlertCircle,  label: "OPEN TICKETS",  value: String(openCount),     sub: "currently active",  color: "text-purple-600",  bg: "bg-purple-50",  spark: sparkData },
-                  { icon: CheckCircle2, label: "RESOLVED",      value: String(resolvedCount), sub: "tickets closed",    color: "text-emerald-600", bg: "bg-emerald-50", spark: null },
-                  { icon: Clock,        label: "AVG RESPONSE",  value: "8m",                  sub: "SLA target: 10m",   color: "text-blue-600",    bg: "bg-blue-50",    spark: null },
-                ].map(({ icon: Icon, label, value, sub, color, bg, spark }) => (
-                  <div key={label} className="rounded-xl p-4" style={{ background: "var(--surface-low)" }}>
+                  { icon: AlertCircle,  label: "OPEN TICKETS",  value: String(openCount),     sub: "currently active",  color: "text-purple-600",  bg: "bg-purple-50",  spark: sparkData,  href: "/tickets?status=Open" },
+                  { icon: CheckCircle2, label: "RESOLVED",      value: String(resolvedCount), sub: "tickets closed",    color: "text-emerald-600", bg: "bg-emerald-50", spark: null,       href: "/tickets?status=Resolved" },
+                  { icon: Clock,        label: "AVG RESPONSE",  value: "8m",                  sub: "SLA target: 10m",   color: "text-blue-600",    bg: "bg-blue-50",    spark: null,       href: "/tickets" },
+                ].map(({ icon: Icon, label, value, sub, color, bg, spark, href }) => (
+                  <Link key={label} href={href}
+                    className="rounded-xl p-4 group transition-all duration-150 hover:scale-[1.02] hover:shadow-md cursor-pointer"
+                    style={{ background: "var(--surface-low)" }}>
                     <div className="flex items-start justify-between">
-                      <div className={`inline-flex p-2 rounded-lg ${bg} mb-3`}>
+                      <div className={`inline-flex p-2 rounded-lg ${bg} mb-3 transition-transform duration-150 group-hover:scale-110`}>
                         <Icon size={16} className={color} />
                       </div>
                       {spark && <Sparkline data={spark} color="#7131d6" width={80} height={28} />}
                     </div>
                     <p className="text-label-caps text-[#48484a] mb-1">{label}</p>
                     <p className="text-2xl font-bold text-[#1a1c1c] tracking-tight">{value}</p>
-                    <p className="text-xs text-[#48484a] mt-1">{sub}</p>
-                  </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-xs text-[#48484a]">{sub}</p>
+                      <ArrowRight size={12} className="text-[#48484a] opacity-0 group-hover:opacity-100 transition-opacity -translate-x-1 group-hover:translate-x-0 duration-150" />
+                    </div>
+                  </Link>
                 ))}
               </div>
             )}
@@ -281,17 +286,22 @@ export default function Dashboard() {
             {!hydrated ? (
               <><SkeletonCard /><SkeletonCard /></>
             ) : [
-              { icon: Users,      label: "ACTIVE AGENTS", value: "12", sub: "of 18 online",        color: "text-purple-600", bg: "bg-purple-50" },
-              { icon: TrendingUp, label: "CSAT SCORE",    value: "94%", sub: "↑ 2pts this week",   color: "text-blue-600",   bg: "bg-blue-50" },
-            ].map(({ icon: Icon, label, value, sub, color, bg }) => (
-              <div key={label} className="rounded-2xl p-5" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
-                <div className={`inline-flex p-2 rounded-lg ${bg} mb-3`}>
+              { icon: Users,      label: "ACTIVE AGENTS", value: "12", sub: "of 18 online",       color: "text-purple-600", bg: "bg-purple-50", href: "/users" },
+              { icon: TrendingUp, label: "CSAT SCORE",    value: "94%", sub: "↑ 2pts this week",  color: "text-blue-600",   bg: "bg-blue-50",   href: "/analytics" },
+            ].map(({ icon: Icon, label, value, sub, color, bg, href }) => (
+              <Link key={label} href={href}
+                className="rounded-2xl p-5 group transition-all duration-150 hover:scale-[1.02] hover:shadow-md cursor-pointer"
+                style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
+                <div className={`inline-flex p-2 rounded-lg ${bg} mb-3 transition-transform duration-150 group-hover:scale-110`}>
                   <Icon size={16} className={color} />
                 </div>
                 <p className="text-label-caps text-[#48484a] mb-1">{label}</p>
                 <p className="text-2xl font-bold text-[#1a1c1c] tracking-tight">{value}</p>
-                <p className="text-xs text-[#48484a] mt-1">{sub}</p>
-              </div>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs text-[#48484a]">{sub}</p>
+                  <ArrowRight size={11} className="text-[#48484a] opacity-0 group-hover:opacity-100 transition-opacity -translate-x-1 group-hover:translate-x-0 duration-150" />
+                </div>
+              </Link>
             ))}
           </div>
 

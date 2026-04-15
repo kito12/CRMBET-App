@@ -59,6 +59,7 @@ export default function TicketsPage() {
     const clientId = params.get("clientId");
     const openId   = params.get("open");
     const isNew    = params.get("new");
+    const status   = params.get("status");
     if (clientId) {
       const match = customers.find(c => c.clientId === clientId);
       if (match) {
@@ -74,6 +75,10 @@ export default function TicketsPage() {
     }
     if (isNew) {
       setModalOpen(true);
+      history.replaceState({}, "", "/tickets");
+    }
+    if (status && statusFilters.includes(status as typeof statusFilters[number])) {
+      setActiveFilter(status);
       history.replaceState({}, "", "/tickets");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

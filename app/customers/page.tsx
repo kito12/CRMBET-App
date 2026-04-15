@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, UserCircle, Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, UserCircle, Plus, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import Link from "next/link";
 import type { Customer, AccountType, CustomerStatus } from "@/lib/data";
 import { useData } from "@/components/DataProvider";
@@ -56,6 +56,15 @@ export default function CustomersPage() {
     setForm(defaultForm);
   }
 
+  function exportCSV() {
+    const headers = ["Client ID","Name","Email","Phone","Country","Account Type","Status","Created"];
+    const rows = customers.map(c => [c.clientId, c.name, c.email, c.phone, c.country, c.accountType, c.status, c.createdAt]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${v ?? ""}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const a = document.createElement("a"); a.href = url; a.download = "customers.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const filtered = customers.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     c.clientId.toLowerCase().includes(search.toLowerCase()) ||
@@ -74,9 +83,16 @@ export default function CustomersPage() {
           <h1 className="text-display text-[#1a1c1c]">Customers</h1>
           <p className="text-sm text-[#48484a] mt-1">All registered client accounts</p>
         </div>
-        <button onClick={() => setAddOpen(true)} className="gradient-primary text-white text-sm font-medium px-4 py-2.5 rounded-xl flex items-center gap-2 hover:opacity-90 transition-opacity shadow-ambient">
-          <Plus size={15} /> Add Customer
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={exportCSV}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-[#48484a] hover:bg-[#f3f3f3] transition-colors"
+            style={{ background: "var(--surface-lowest)", border: "1px solid rgba(204,195,215,0.3)" }}>
+            <Download size={14} /> Export CSV
+          </button>
+          <button onClick={() => setAddOpen(true)} className="gradient-primary text-white text-sm font-medium px-4 py-2.5 rounded-xl flex items-center gap-2 hover:opacity-90 transition-opacity shadow-ambient">
+            <Plus size={15} /> Add Customer
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -84,20 +100,27 @@ export default function CustomersPage() {
         {!hydrated ? (
           [1,2,3,4].map(i => <SkeletonCard key={i} />)
         ) : [
-          { label: "TOTAL CLIENTS", value: customers.length,                                      sub: "all time",           color: "text-purple-600",  bg: "bg-purple-50" },
-          { label: "ACTIVE",        value: customers.filter(c => c.status === "Active").length,   sub: "currently active",   color: "text-emerald-600", bg: "bg-emerald-50" },
-          { label: "VIP ACCOUNTS",  value: customers.filter(c => c.accountType === "VIP").length, sub: "high-value clients", color: "text-blue-600",    bg: "bg-blue-50" },
-          { label: "OPEN TICKETS",  value: tickets.filter(t => t.status === "Open").length,       sub: "across all clients", color: "text-amber-600",   bg: "bg-amber-50" },
-        ].map(({ label, value, sub, color, bg }) => (
-          <div key={label} className="rounded-2xl p-5" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
-            <div className={`inline-flex p-2 rounded-lg ${bg} mb-3`}>
-              <UserCircle size={16} className={color} />
-            </div>
-            <p className="text-label-caps text-[#48484a] mb-1">{label}</p>
-            <p className="text-2xl font-bold text-[#1a1c1c] tracking-tight">{value}</p>
-            <p className="text-xs text-[#48484a] mt-1">{sub}</p>
-          </div>
-        ))}
+          { label: "TOTAL CLIENTS", value: customers.length,                                      sub: "all time",           color: "text-purple-600",  bg: "bg-purple-50",  href: null },
+          { label: "ACTIVE",        value: customers.filter(c => c.status === "Active").length,   sub: "currently active",   color: "text-emerald-600", bg: "bg-emerald-50", href: null },
+          { label: "VIP ACCOUNTS",  value: customers.filter(c => c.accountType === "VIP").length, sub: "high-value clients", color: "text-blue-600",    bg: "bg-blue-50",    href: null },
+          { label: "OPEN TICKETS",  value: tickets.filter(t => t.status === "Open").length,       sub: "across all clients", color: "text-amber-600",   bg: "bg-amber-50",   href: "/tickets?status=Open" },
+        ].map(({ label, value, sub, color, bg, href }) => {
+          const inner = (
+            <>
+              <div className={`inline-flex p-2 rounded-lg ${bg} mb-3`}>
+                <UserCircle size={16} className={color} />
+              </div>
+              <p className="text-label-caps text-[#48484a] mb-1">{label}</p>
+              <p className="text-2xl font-bold text-[#1a1c1c] tracking-tight">{value}</p>
+              <p className="text-xs text-[#48484a] mt-1">{sub}</p>
+            </>
+          );
+          return href ? (
+            <Link key={label} href={href} className="rounded-2xl p-5 transition-all duration-150 hover:scale-[1.02] hover:shadow-md" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>{inner}</Link>
+          ) : (
+            <div key={label} className="rounded-2xl p-5" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>{inner}</div>
+          );
+        })}
       </div>
 
       {/* Search */}
