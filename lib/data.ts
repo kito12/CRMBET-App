@@ -39,6 +39,7 @@ export interface Ticket {
   escalated?: boolean;
   escalatedAt?: string;
   escalatedTo?: string;
+  source?: "web_form" | "agent";
 }
 
 export interface AppNotification {

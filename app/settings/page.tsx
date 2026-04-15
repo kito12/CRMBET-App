@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   User, Bell, Monitor, Info, Save, Zap, ArrowUpCircle,
-  MessageSquare, Plus, Pencil, Trash2, Check, X, ChevronDown,
+  MessageSquare, Plus, Pencil, Trash2, Check, X, ChevronDown, Link2, Copy,
 } from "lucide-react";
 import { useData } from "@/components/DataProvider";
 import type { CannedResponse } from "@/lib/data";
@@ -45,6 +45,16 @@ export default function SettingsPage() {
   const [crm, setCrm] = useState({
     name: "BetCRM", slaTarget: "10", headOfficeName: "Head Office CRM", defaultAgent: "Unassigned",
   });
+
+  /* ── Public form URL ── */
+  const [formUrl, setFormUrl] = useState("");
+  const [urlCopied, setUrlCopied] = useState(false);
+  useEffect(() => { setFormUrl(`${window.location.origin}/submit`); }, []);
+  function copyUrl() {
+    navigator.clipboard.writeText(formUrl);
+    setUrlCopied(true);
+    setTimeout(() => setUrlCopied(false), 2000);
+  }
 
   /* ── Canned response editing state ── */
   const [editingId, setEditingId] = useState<string | null>(null);   // null = closed, "new" = new form
@@ -384,6 +394,39 @@ export default function SettingsPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* ── Public Submission Form ── */}
+      <div className="rounded-2xl p-6 mb-5" style={cardStyle}>
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center">
+            <Link2 size={13} className="text-blue-600" />
+          </div>
+          <h2 className="text-base font-semibold text-[#1a1c1c]">Public Submission Form</h2>
+        </div>
+        <p className="text-xs text-[#48484a] mb-5">
+          Share this link with your customers so they can submit support tickets directly from your website — no login required.
+        </p>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 px-4 py-2.5 rounded-xl text-sm font-mono text-purple-700 select-all truncate"
+            style={{ background: "rgba(113,49,214,0.06)", border: "1px solid rgba(113,49,214,0.15)" }}>
+            {formUrl || "Loading…"}
+          </div>
+          <button onClick={copyUrl}
+            className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-medium flex-shrink-0 transition-all ${
+              urlCopied ? "bg-emerald-500 text-white" : "gradient-primary text-white hover:opacity-90"
+            }`}>
+            {urlCopied ? <><Check size={12} /> Copied!</> : <><Copy size={12} /> Copy Link</>}
+          </button>
+          <a href="/submit" target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-medium text-[#48484a] hover:bg-[#f3f3f3] transition-colors flex-shrink-0"
+            style={{ background: "var(--surface-low)" }}>
+            <Link2 size={12} /> Preview
+          </a>
+        </div>
+        <p className="text-xs text-[#48484a] mt-3">
+          Tickets submitted via this form arrive in your queue tagged <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 text-blue-600 uppercase tracking-wide mx-0.5">Web</span> so you can identify them at a glance.
+        </p>
       </div>
 
       {/* ── About ── */}

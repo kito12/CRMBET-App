@@ -128,8 +128,7 @@ export default function TicketsPage() {
   function validate() {
     const e: Partial<typeof emptyForm> = {};
     if (!form.customer.trim()) e.customer = "Required";
-    if (!form.email.trim()) e.email = "Required";
-    else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = "Invalid email";
+    if (form.email.trim() && !/\S+@\S+\.\S+/.test(form.email)) e.email = "Invalid email";
     return e;
   }
 
@@ -311,10 +310,15 @@ export default function TicketsPage() {
                 <CopyButton text={ticket.clientId} />
               </div>
               <div>
-                <p className="text-sm font-medium text-[#1a1c1c]">{ticket.customer}</p>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <p className="text-sm font-medium text-[#1a1c1c]">{ticket.customer}</p>
+                  {ticket.source === "web_form" && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 text-blue-600 uppercase tracking-wide flex-shrink-0">Web</span>
+                  )}
+                </div>
                 <div className="flex items-center gap-1">
-                  <p className="text-xs text-[#48484a] truncate">{ticket.email}</p>
-                  <CopyButton text={ticket.email} />
+                  <p className="text-xs text-[#48484a] truncate">{ticket.email || ticket.phone || "—"}</p>
+                  <CopyButton text={ticket.email || ticket.phone} />
                 </div>
               </div>
               <div className="flex items-center gap-1">
@@ -393,7 +397,7 @@ export default function TicketsPage() {
               {errors.customer && <p className="text-xs text-red-500 mt-1">{errors.customer}</p>}
             </div>
             <div>
-              <InputField label="Email" type="email" placeholder="john@email.com" value={form.email}
+              <InputField label="Email (optional)" type="email" placeholder="john@email.com" value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })} />
               {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
             </div>
