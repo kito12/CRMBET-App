@@ -51,7 +51,8 @@ export interface Ticket {
   escalated?: boolean;
   escalatedAt?: string;
   escalatedTo?: string;
-  resolvedAt?: string;    // ISO 8601 — set when status first changes to Resolved
+  resolvedAt?: string;      // ISO 8601 — set when status first changes to Resolved
+  firstRepliedAt?: string;  // ISO 8601 — set when status first moves out of "Open"
   source?: "web_form" | "agent";
   auditLog?: AuditEntry[];
 }
@@ -78,6 +79,23 @@ export interface EscalationSettings {
   tier2Agent: string;
   headOfficeUrl: string;
 }
+
+export interface SLAPolicy {
+  firstReplyMinutes: number;
+  resolutionMinutes: number;
+}
+
+export interface SLAPolicies {
+  High:   SLAPolicy;
+  Medium: SLAPolicy;
+  Low:    SLAPolicy;
+}
+
+export const defaultSLAPolicies: SLAPolicies = {
+  High:   { firstReplyMinutes: 60, resolutionMinutes: 1440  }, // 1 h reply, 24 h resolution
+  Medium: { firstReplyMinutes: 60, resolutionMinutes: 4320  }, // 1 h reply, 72 h resolution
+  Low:    { firstReplyMinutes: 60, resolutionMinutes: 4320  }, // 1 h reply, 72 h resolution
+};
 
 export const defaultEscalationSettings: EscalationSettings = {
   enabled: true,

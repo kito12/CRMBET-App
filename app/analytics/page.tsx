@@ -133,7 +133,7 @@ function DonutChart({ slices }: { slices: { value: number; color: string; label:
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function AnalyticsPage() {
-  const { tickets, customers } = useData();
+  const { tickets, customers, slaPolicy } = useData();
   const reportRef = useRef<HTMLDivElement>(null);
 
   const total      = tickets.length;
@@ -269,7 +269,11 @@ export default function AnalyticsPage() {
                 {tickets.filter(t => {
                   if (t.status === "Resolved" || t.status === "On Hold") return false;
                   const d = parseCreatedToDate(t.created);
-                  return d ? (Date.now() - d.getTime()) / 60000 > 30 : false;
+                  if (!d) return false;
+                  const elapsedMs = Date.now() - d.getTime();
+                  const policy = slaPolicy[t.priority as keyof typeof slaPolicy];
+                  const targetMs = (t.status === "Open" ? policy.firstReplyMinutes : policy.resolutionMinutes) * 60_000;
+                  return elapsedMs > targetMs;
                 }).length}
               </span>
             </div>

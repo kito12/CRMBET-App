@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   User, Bell, Monitor, Info, Save, Zap, ArrowUpCircle,
-  MessageSquare, Plus, Pencil, Trash2, Check, X, ChevronDown, Link2, Copy,
+  MessageSquare, Plus, Pencil, Trash2, Check, X, ChevronDown, Link2, Copy, ShieldAlert,
 } from "lucide-react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -35,7 +35,7 @@ const CATEGORIES = ["Withdrawal", "Bet Settlement", "Account Access", "Bonus Dis
 const blankCanned = (): Omit<CannedResponse, "id"> => ({ title: "", category: "General", body: "" });
 
 export default function SettingsPage() {
-  const { escalationSettings, setEscalationSettings, cannedResponses, setCannedResponses } = useData();
+  const { escalationSettings, setEscalationSettings, cannedResponses, setCannedResponses, slaPolicy, setSlaPolicy } = useData();
   const { user, signOut } = useAuth();
 
   /* ── Profile / Notifications / CRM local state ── */
@@ -239,6 +239,65 @@ export default function SettingsPage() {
               {agentList.map(a => <option key={a}>{a}</option>)}
             </select>
           </div>
+        </div>
+      </div>
+
+      {/* ── SLA Policies ── */}
+      <div className="rounded-2xl p-6 mb-5" style={cardStyle}>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center">
+              <ShieldAlert size={13} className="text-blue-600" />
+            </div>
+            <h2 className="text-base font-semibold text-[#1a1c1c]">SLA Policies</h2>
+          </div>
+          {!isAdmin && <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-amber-700" style={{ background: "rgba(245,158,11,0.1)" }}>🔒 Admin only</span>}
+        </div>
+        <p className="text-xs text-[#48484a] mb-5">Define first reply and resolution targets per ticket priority.</p>
+
+        <div className={`flex flex-col gap-3 ${!isAdmin ? "opacity-50 pointer-events-none" : ""}`}>
+          {(["High", "Medium", "Low"] as const).map(priority => {
+            const colors: Record<string, string> = { High: "bg-red-50 text-red-600", Medium: "bg-amber-50 text-amber-700", Low: "bg-emerald-50 text-emerald-700" };
+            const policy = slaPolicy[priority];
+            return (
+              <div key={priority} className="rounded-xl p-4" style={{ background: "var(--surface-low)" }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${colors[priority]}`}>{priority}</span>
+                  <span className="text-xs text-[#48484a]">Priority</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>First Reply</label>
+                    <select
+                      value={policy.firstReplyMinutes}
+                      onChange={e => setSlaPolicy(p => ({ ...p, [priority]: { ...p[priority], firstReplyMinutes: Number(e.target.value) } }))}
+                      disabled={!isAdmin}
+                      className={inputClass} style={{ background: "var(--surface-lowest)" }}>
+                      <option value={30}>30 minutes</option>
+                      <option value={60}>1 hour</option>
+                      <option value={120}>2 hours</option>
+                      <option value={240}>4 hours</option>
+                      <option value={480}>8 hours</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Resolution</label>
+                    <select
+                      value={policy.resolutionMinutes}
+                      onChange={e => setSlaPolicy(p => ({ ...p, [priority]: { ...p[priority], resolutionMinutes: Number(e.target.value) } }))}
+                      disabled={!isAdmin}
+                      className={inputClass} style={{ background: "var(--surface-lowest)" }}>
+                      <option value={240}>4 hours</option>
+                      <option value={480}>8 hours</option>
+                      <option value={1440}>24 hours (1 day)</option>
+                      <option value={2880}>48 hours (2 days)</option>
+                      <option value={4320}>72 hours (3 days)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

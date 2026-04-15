@@ -74,19 +74,22 @@ const emptyForm = {
   agent: "Unassigned", description: "",
 };
 
-// SLA dot color for open tickets
-function getSLADotClass(ticket: Ticket): string {
-  if (ticket.status === "Resolved" || ticket.status === "On Hold") return "bg-emerald-400";
+// SLA dot color — respects per-priority policy
+function getSLADotClass(ticket: Ticket, policy: { firstReplyMinutes: number; resolutionMinutes: number }): string {
+  if (ticket.status === "Resolved") return "bg-emerald-400";
+  if (ticket.status === "On Hold")  return "bg-amber-400";
   const d = parseTicketDate(ticket);
   if (!d) return "bg-slate-300";
-  const mins = Math.floor((Date.now() - d.getTime()) / 60000);
-  if (mins < 10)  return "bg-emerald-400";
-  if (mins < 30)  return "bg-amber-400";
+  const elapsedMs  = Date.now() - d.getTime();
+  const targetMs   = (ticket.status === "Open" ? policy.firstReplyMinutes : policy.resolutionMinutes) * 60_000;
+  const pctUsed    = elapsedMs / targetMs;
+  if (pctUsed < 0.75) return "bg-emerald-400";
+  if (pctUsed < 1)    return "bg-amber-400";
   return "bg-red-400";
 }
 
 export default function TicketsPage() {
-  const { tickets, setTickets, customers, hydrated } = useData();
+  const { tickets, setTickets, customers, hydrated, slaPolicy } = useData();
   const { user: currentUser } = useAuth();
   const [agentList, setAgentList] = useState<string[]>(["Unassigned"]);
 
@@ -543,7 +546,7 @@ export default function TicketsPage() {
             <div className="flex items-center justify-between">
               <span className="text-xs text-[#48484a]">{ticket.agent}</span>
               <div className="flex items-center gap-1.5">
-                <span className={`w-1.5 h-1.5 rounded-full ${getSLADotClass(ticket)}`} />
+                <span className={`w-1.5 h-1.5 rounded-full ${getSLADotClass(ticket, slaPolicy[ticket.priority])}`} />
                 <span className="text-xs text-[#48484a]">{formatCreated(ticket)}</span>
               </div>
             </div>
@@ -612,7 +615,7 @@ export default function TicketsPage() {
               <StatusPill status={ticket.status} />
               <span className="text-sm text-[#48484a]">{ticket.agent}</span>
               <div className="flex items-center gap-1.5">
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getSLADotClass(ticket)}`} />
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getSLADotClass(ticket, slaPolicy[ticket.priority])}`} />
                 <span className="text-xs text-[#48484a]">{formatCreated(ticket)}</span>
               </div>
               {/* Quick resolve */}

@@ -41,15 +41,39 @@ function getElapsed(created: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function getSLABadge(created: string, status: TicketStatus) {
-  if (status === "Resolved") return { label: "Resolved",   cls: "bg-emerald-50 text-emerald-700" };
-  if (status === "On Hold")  return { label: "On Hold",    cls: "bg-amber-50 text-amber-700" };
-  const d = parseCreated(created);
-  if (!d) return { label: "—", cls: "bg-slate-100 text-slate-500" };
-  const mins = Math.floor((Date.now() - d.getTime()) / 60000);
-  if (mins < 10)  return { label: "Within SLA",  cls: "bg-emerald-50 text-emerald-700" };
-  if (mins < 30)  return { label: "SLA Warning", cls: "bg-amber-50 text-amber-700" };
-  return { label: "SLA Breached", cls: "bg-red-50 text-red-600" };
+function computeSLABadge(
+  ticket: Ticket,
+  status: TicketStatus,
+  policy: { firstReplyMinutes: number; resolutionMinutes: number },
+  now: number,
+) {
+  if (status === "Resolved") return { label: "Resolved", sub: "",            cls: "bg-emerald-50 text-emerald-700" };
+  if (status === "On Hold")  return { label: "On Hold",  sub: "SLA paused",  cls: "bg-amber-50 text-amber-700" };
+
+  const createdMs = ticket.createdAt
+    ? new Date(ticket.createdAt).getTime()
+    : (parseCreated(ticket.created)?.getTime() ?? 0);
+  if (!createdMs) return { label: "—", sub: "", cls: "bg-slate-100 text-slate-500" };
+
+  const elapsedMs   = now - createdMs;
+  const isOpen      = status === "Open";
+  const targetMs    = (isOpen ? policy.firstReplyMinutes : policy.resolutionMinutes) * 60_000;
+  const remainingMs = targetMs - elapsedMs;
+  const pctUsed     = elapsedMs / targetMs;
+
+  const typeLabel = isOpen ? "First Reply" : "Resolution";
+
+  if (remainingMs > 0) {
+    const cls = pctUsed < 0.75
+      ? "bg-emerald-50 text-emerald-700"
+      : "bg-amber-50 text-amber-700";
+    return { label: typeLabel, sub: `${formatCountdown(remainingMs)} left`, cls };
+  }
+  return {
+    label: typeLabel,
+    sub:   `Breached ${formatCountdown(remainingMs)} ago`,
+    cls:   "bg-red-50 text-red-600",
+  };
 }
 
 function nowLabel() {
@@ -60,6 +84,19 @@ function nowLabel() {
 
 function formatPhone(phone: string) {
   return phone.replace(/[\s+\-()]/g, "");
+}
+
+// ── SLA helpers ───────────────────────────────────────────────────────────────
+
+function formatCountdown(ms: number): string {
+  const totalMins = Math.floor(Math.abs(ms) / 60_000);
+  const hrs  = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  if (hrs === 0)  return `${mins}m`;
+  if (hrs < 24)   return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  const remH = hrs % 24;
+  return remH > 0 ? `${days}d ${remH}h` : `${days}d`;
 }
 
 // ── Audit entry display helpers ───────────────────────────────────────────────
@@ -95,13 +132,14 @@ async function callSendEmail(payload: Record<string, string>) {
 }
 
 export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
-  const { cannedResponses, escalationSettings, addNotification, tickets: allTickets, customers } = useData();
+  const { cannedResponses, escalationSettings, addNotification, tickets: allTickets, customers, slaPolicy } = useData();
   const { user: currentUser } = useAuth();
   const authorName = currentUser?.name ?? "Agent";
 
   const [form, setForm]             = useState<Ticket | null>(null);
   const [dirty, setDirty]           = useState(false);
   const [c360Open, setC360Open]     = useState(false);
+  const [slaTick,  setSlaTick]      = useState(0);
   const [noteText, setNoteText]     = useState("");
   const [replyText, setReplyText]   = useState("");
   const [showTemplates, setShowTemplates] = useState(false);
@@ -159,6 +197,12 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
     return () => document.removeEventListener("mousedown", handler);
   }, [showTemplates]);
 
+  // Tick every 30s so the live SLA countdown updates
+  useEffect(() => {
+    const id = setInterval(() => setSlaTick(t => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
   if (!ticket || !form) return null;
 
   function update<K extends keyof Ticket>(key: K, value: Ticket[K]) {
@@ -181,6 +225,10 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
 
     const updated: Ticket = {
       ...form,
+      // Stamp firstRepliedAt the first time a ticket moves out of "Open"
+      firstRepliedAt: ticket.status === "Open" && form.status !== "Open" && !form.firstRepliedAt
+        ? new Date().toISOString()
+        : form.firstRepliedAt,
       // Stamp resolvedAt the first time a ticket is moved to Resolved
       resolvedAt: form.status === "Resolved" && ticket.status !== "Resolved"
         ? new Date().toISOString()
@@ -323,7 +371,8 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
     addNotification({ type: "escalated", ticketId: form.id, message: `${form.id} escalated to ${to} by ${authorName}` });
   }
 
-  const sla = getSLABadge(ticket.created, form.status);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const sla = computeSLABadge(ticket, form.status, slaPolicy[form.priority], Date.now());
   const filteredCanned = cannedResponses.filter(cr =>
     !templateSearch || cr.title.toLowerCase().includes(templateSearch.toLowerCase()) ||
     cr.category.toLowerCase().includes(templateSearch.toLowerCase())
@@ -349,8 +398,10 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-base font-semibold text-[#1a1c1c] tracking-tight">{ticket.id}</h2>
                 <span className="text-xs font-medium text-[#0058bf]">{ticket.clientId}</span>
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${sla.cls}`}>
-                  <Clock size={10} /> {sla.label}
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${sla.cls}`} title={`SLA: ${sla.label}`}>
+                  <Clock size={10} />
+                  <span>{sla.label}</span>
+                  {sla.sub && <span className="opacity-80">· {sla.sub}</span>}
                 </span>
                 {form.escalated && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">

@@ -6,9 +6,9 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "./AuthProvider";
-import { defaultEscalationSettings } from "@/lib/data";
+import { defaultEscalationSettings, defaultSLAPolicies } from "@/lib/data";
 import type {
-  Customer, Ticket, AppNotification, CannedResponse, EscalationSettings, AuditEntry,
+  Customer, Ticket, AppNotification, CannedResponse, EscalationSettings, SLAPolicies, AuditEntry,
 } from "@/lib/data";
 
 interface DataContextType {
@@ -26,6 +26,8 @@ interface DataContextType {
   setCannedResponses: React.Dispatch<React.SetStateAction<CannedResponse[]>>;
   escalationSettings: EscalationSettings;
   setEscalationSettings: React.Dispatch<React.SetStateAction<EscalationSettings>>;
+  slaPolicy: SLAPolicies;
+  setSlaPolicy: React.Dispatch<React.SetStateAction<SLAPolicies>>;
   hydrated: boolean;
   messagesUnreadCount: number;
 }
@@ -96,6 +98,7 @@ export default function DataProvider({ children }: { children: React.ReactNode }
   const [notifications,      _setNotifications]      = useState<AppNotification[]>([]);
   const [cannedResponses,    _setCannedResponses]    = useState<CannedResponse[]>([]);
   const [escalationSettings, _setEscalationSettings] = useState<EscalationSettings>(defaultEscalationSettings);
+  const [slaPolicy,          _setSlaPolicy]          = useState<SLAPolicies>(defaultSLAPolicies);
   const [hydrated,           setHydrated]            = useState(false);
   const [messagesUnreadCount, setMessagesUnreadCount] = useState(0);
 
@@ -105,6 +108,7 @@ export default function DataProvider({ children }: { children: React.ReactNode }
   const notifsRef    = useRef<AppNotification[]>([]);
   const cannedRef    = useRef<CannedResponse[]>([]);
   const escalRef     = useRef<EscalationSettings>(defaultEscalationSettings);
+  const slaRef       = useRef<SLAPolicies>(defaultSLAPolicies);
 
   // ── Wrapped setters: update React state + sync delta to Firestore ──────────
   const setTickets: React.Dispatch<React.SetStateAction<Ticket[]>> = useCallback((action) => {
@@ -152,6 +156,15 @@ export default function DataProvider({ children }: { children: React.ReactNode }
     });
   }, []);
 
+  const setSlaPolicy: React.Dispatch<React.SetStateAction<SLAPolicies>> = useCallback((action) => {
+    _setSlaPolicy(prev => {
+      const next = typeof action === "function" ? action(prev) : action;
+      setDoc(doc(db, "settings", "sla"), next).catch(console.error);
+      slaRef.current = next;
+      return next;
+    });
+  }, []);
+
   // ── Firestore listeners: seed once on first login, then stream live ────────
   useEffect(() => {
     if (!user) {
@@ -160,6 +173,8 @@ export default function DataProvider({ children }: { children: React.ReactNode }
       _setNotifications([]);
       _setCannedResponses([]);
       _setEscalationSettings(defaultEscalationSettings);
+      _setSlaPolicy(defaultSLAPolicies);
+      slaRef.current = defaultSLAPolicies;
       ticketsRef.current   = [];
       customersRef.current = [];
       notifsRef.current    = [];
@@ -170,12 +185,10 @@ export default function DataProvider({ children }: { children: React.ReactNode }
     }
 
     const uid = user.uid;
-    const loaded = { tickets: false, customers: false, notifs: false, canned: false, escalation: false };
+    const loaded = { tickets: false, customers: false, notifs: false, canned: false, escalation: false, sla: false };
     function markLoaded(key: keyof typeof loaded) {
       loaded[key] = true;
-      if (loaded.tickets && loaded.customers && loaded.notifs && loaded.canned && loaded.escalation) {
-        setHydrated(true);
-      }
+      if (Object.values(loaded).every(Boolean)) setHydrated(true);
     }
 
     const unsubTickets = onSnapshot(query(collection(db, "tickets"), limit(500)), snap => {
@@ -208,6 +221,16 @@ export default function DataProvider({ children }: { children: React.ReactNode }
       _setEscalationSettings(data); escalRef.current = data; markLoaded("escalation");
     });
 
+    const unsubSla = onSnapshot(doc(db, "settings", "sla"), async snap => {
+      if (!snap.exists()) {
+        await setDoc(doc(db, "settings", "sla"), defaultSLAPolicies);
+        markLoaded("sla");
+        return;
+      }
+      const data = snap.data() as SLAPolicies;
+      _setSlaPolicy(data); slaRef.current = data; markLoaded("sla");
+    });
+
     const unsubConversations = onSnapshot(
       query(collection(db, "conversations"), where("participants", "array-contains", uid)),
       snap => {
@@ -219,7 +242,7 @@ export default function DataProvider({ children }: { children: React.ReactNode }
 
     return () => {
       unsubTickets(); unsubCustomers(); unsubNotifs();
-      unsubCanned(); unsubEscalation(); unsubConversations();
+      unsubCanned(); unsubEscalation(); unsubSla(); unsubConversations();
     };
   }, [user]);
 
@@ -235,16 +258,22 @@ export default function DataProvider({ children }: { children: React.ReactNode }
           if (t.status === "Resolved" || t.status === "On Hold" || t.escalated) return t;
           const ageMs    = ticketAgeMs(t, now);
           const ageHours = ageMs / 3_600_000;
-          const ageMin   = ageMs / 60_000;
 
-          if (ageMin > 30) {
+          // Per-priority SLA breach detection
+          const policy = slaRef.current[t.priority as keyof typeof slaRef.current];
+          const slaTargetMs = t.status === "Open"
+            ? policy.firstReplyMinutes * 60_000
+            : policy.resolutionMinutes * 60_000;
+
+          if (ageMs > slaTargetMs) {
             setNotifications(ns => {
               if (ns.some(n => n.ticketId === t.id && n.type === "sla_breach")) return ns;
+              const breachType = t.status === "Open" ? "first reply" : "resolution";
               return [{
                 id: `n-sla-${t.id}`,
                 type: "sla_breach" as const,
                 ticketId: t.id,
-                message: `${t.id} has breached SLA — ${t.agent === "Unassigned" ? "unassigned" : `assigned to ${t.agent}`}`,
+                message: `${t.id} has breached ${breachType} SLA — ${t.agent === "Unassigned" ? "unassigned" : `assigned to ${t.agent}`}`,
                 timestamp: nowLabel(),
                 read: false,
               }, ...ns];
@@ -327,6 +356,7 @@ export default function DataProvider({ children }: { children: React.ReactNode }
       notifications, setNotifications, addNotification, unreadCount, markAllRead, clearNotifications,
       cannedResponses, setCannedResponses,
       escalationSettings, setEscalationSettings,
+      slaPolicy, setSlaPolicy,
       hydrated, messagesUnreadCount,
     }}>
       {children}
