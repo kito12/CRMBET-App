@@ -4,6 +4,7 @@ import AppShell from "@/components/AppShell";
 import ThemeProvider from "@/components/ThemeProvider";
 import CommandPaletteProvider from "@/components/CommandPaletteProvider";
 import DataProvider from "@/components/DataProvider";
+import AuthProvider from "@/components/AuthProvider";
 
 export const metadata: Metadata = {
   title: "BetCRM — Customer Support",
@@ -29,11 +30,13 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen" style={{ background: "var(--surface)" }}>
         <ThemeProvider>
-          <DataProvider>
-            <CommandPaletteProvider>
-              <AppShell>{children}</AppShell>
-            </CommandPaletteProvider>
-          </DataProvider>
+          <AuthProvider>
+            <DataProvider>
+              <CommandPaletteProvider>
+                <AppShell>{children}</AppShell>
+              </CommandPaletteProvider>
+            </DataProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

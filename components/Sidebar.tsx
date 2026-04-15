@@ -5,11 +5,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Ticket, Users, UserCircle, Settings, Zap,
-  Moon, Sun, Search, MessageSquare, Bell, BarChart2, MoreHorizontal, X, ChevronRight,
+  Moon, Sun, Search, MessageSquare, Bell, BarChart2, MoreHorizontal, X, ChevronRight, LogOut,
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { useCommandPalette } from "./CommandPaletteProvider";
 import { useData } from "./DataProvider";
+import { useAuth } from "./AuthProvider";
 import NotificationPanel from "./NotificationPanel";
 
 const navItems = [
@@ -42,8 +43,13 @@ export default function Sidebar() {
   const { theme, toggle } = useTheme();
   const { open: openPalette } = useCommandPalette();
   const { tickets, unreadCount } = useData();
+  const { user, signOut } = useAuth();
   const [notifOpen, setNotifOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [moreOpen, setMoreOpen]   = useState(false);
+
+  const initials = user?.name
+    ? user.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)
+    : "??";
 
   const openTicketCount = tickets.filter(t => t.status === "Open").length;
 
@@ -109,8 +115,22 @@ export default function Sidebar() {
           className="w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 text-[#48484a] hover:bg-[#f3f3f3]">
           {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
         </button>
-        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white"
-          style={{ background: "linear-gradient(135deg, #7131d6, #0058bf)" }}>JD</div>
+
+        {/* Avatar + sign out */}
+        <div className="relative group">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white cursor-pointer"
+            style={{ background: "linear-gradient(135deg, #7131d6, #0058bf)" }}
+            title={user?.name ?? "Account"}>
+            {initials}
+          </div>
+          {/* Sign-out tooltip on hover */}
+          <button
+            onClick={signOut}
+            className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity z-50"
+            style={{ background: "#1a1c1c", color: "#fff" }}>
+            <LogOut size={11} /> Sign out
+          </button>
+        </div>
       </aside>
 
       {/* ── Mobile bottom nav (5 items max) ── */}
@@ -178,18 +198,30 @@ export default function Sidebar() {
         {/* Handle + header */}
         <div className="flex items-center justify-between px-5 pt-4 pb-2">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white"
-              style={{ background: "linear-gradient(135deg, #7131d6, #0058bf)" }}>JD</div>
+            <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold text-white"
+              style={{ background: "linear-gradient(135deg, #7131d6, #0058bf)" }}>
+              {initials}
+            </div>
             <div>
-              <p className="text-sm font-semibold" style={{ color: "var(--on-surface)" }}>John Doe</p>
-              <p className="text-xs" style={{ color: "var(--on-surface-variant)" }}>Support Agent</p>
+              <p className="text-sm font-semibold" style={{ color: "var(--on-surface)" }}>{user?.name ?? "Agent"}</p>
+              <p className="text-xs" style={{ color: "var(--on-surface-variant)" }}>
+                {user?.role === "admin" ? "Administrator" : "Support Agent"}
+              </p>
             </div>
           </div>
-          <button onClick={() => setMoreOpen(false)}
-            className="w-8 h-8 flex items-center justify-center rounded-full"
-            style={{ background: "var(--surface-low)", color: "var(--on-surface-variant)" }}>
-            <X size={16} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={signOut}
+              className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+              style={{ background: "var(--surface-low)", color: "var(--on-surface-variant)" }}
+              title="Sign out">
+              <LogOut size={14} />
+            </button>
+            <button onClick={() => setMoreOpen(false)}
+              className="w-8 h-8 flex items-center justify-center rounded-full"
+              style={{ background: "var(--surface-low)", color: "var(--on-surface-variant)" }}>
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Theme toggle row */}
