@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { StatusPill } from "@/components/ui/StatusPill";
-import { Clock, CheckCircle2, AlertCircle, TrendingUp, Users, ArrowRight, Zap, X } from "lucide-react";
+import { Clock, CheckCircle2, AlertCircle, ShieldAlert, UserX, Users, ArrowRight, Zap, X } from "lucide-react";
 import Link from "next/link";
 import { useData } from "@/components/DataProvider";
 import { useAuth } from "@/components/AuthProvider";
@@ -84,7 +84,7 @@ function LiveToast({ ticket, onDismiss }: { ticket: Ticket; onDismiss: () => voi
 
 // ─── Main dashboard ───────────────────────────────────────────────────────────
 export default function Dashboard() {
-  const { tickets, setTickets, customers, hydrated } = useData();
+  const { tickets, setTickets, customers, hydrated, slaPolicy } = useData();
   const { user: currentUser } = useAuth();
   const [agentCount, setAgentCount] = useState(0);
   const [liveMode, setLiveMode]   = useState(false);
@@ -100,33 +100,67 @@ export default function Dashboard() {
     });
   }, []);
 
-  // Computed stats
-  const openCount     = tickets.filter(t => t.status === "Open").length;
-  const resolvedCount = tickets.filter(t => t.status === "Resolved").length;
-  const recentTickets = [...tickets].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 6);
+  // Computed stats — memoized so they only recalculate when tickets/customers/slaPolicy actually change
+  const dashStats = useMemo(() => {
+    const openCount     = tickets.filter(t => t.status === "Open").length;
+    const resolvedCount = tickets.filter(t => t.status === "Resolved").length;
+    const unassignedCount = tickets.filter(t => t.agent === "Unassigned" && t.status !== "Resolved").length;
+    const recentTickets = [...tickets].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 6);
 
-  // Issue breakdown percentages
-  const total = tickets.length || 1;
-  const issuePcts = [
-    { label: "Withdrawal",          color: "bg-purple-500", count: tickets.filter(t => t.issue === "Withdrawal Issue").length },
-    { label: "Restr. Withdrawals",  color: "bg-purple-400", count: tickets.filter(t => t.issue === "Restricted Withdrawals").length },
-    { label: "Deposits",            color: "bg-blue-400",   count: tickets.filter(t => t.issue === "Deposits").length },
-    { label: "Blocked Accounts",    color: "bg-red-400",    count: tickets.filter(t => t.issue === "Blocked Accounts").length },
-    { label: "Bet Settlement",      color: "bg-blue-500",   count: tickets.filter(t => t.issue === "Bet Settlement").length },
-    { label: "Account Access",      color: "bg-indigo-400", count: tickets.filter(t => t.issue === "Account Access").length },
-    { label: "Bonus Dispute",       color: "bg-violet-300", count: tickets.filter(t => t.issue === "Bonus Dispute").length },
-    { label: "Live Betting",        color: "bg-purple-200", count: tickets.filter(t => t.issue === "Live Betting").length },
-  ].filter(x => x.count > 0)
-   .map(x => ({ ...x, pct: Math.round((x.count / total) * 100) }))
-   .sort((a, b) => b.pct - a.pct);
+    // SLA breach count — tickets currently over their SLA target
+    const now = Date.now();
+    const slaBreachCount = tickets.filter(t => {
+      if (t.status === "Resolved" || t.status === "On Hold") return false;
+      const policy = slaPolicy[t.priority];
+      const d = t.createdAt ? new Date(t.createdAt) : null;
+      if (!d) return false;
+      const elapsedMs = now - d.getTime();
+      const targetMs  = (t.status === "Open" ? policy.firstReplyMinutes : policy.resolutionMinutes) * 60_000;
+      return elapsedMs > targetMs;
+    }).length;
 
-  // Sparkline: last 7 "days" based on ticket IDs bucketed into groups of 2
-  const buckets = 7;
-  const sorted  = [...tickets].sort((a, b) => a.id.localeCompare(b.id));
-  const chunkSize = Math.max(1, Math.ceil(sorted.length / buckets));
-  const sparkData = Array.from({ length: buckets }, (_, i) =>
-    sorted.slice(i * chunkSize, (i + 1) * chunkSize).length
-  );
+    // Avg first reply time from real data
+    const repliedTickets = tickets.filter(t => t.firstRepliedAt && t.createdAt);
+    const avgReplyMs = repliedTickets.length === 0 ? null
+      : repliedTickets.reduce((sum, t) => sum + (new Date(t.firstRepliedAt!).getTime() - new Date(t.createdAt!).getTime()), 0) / repliedTickets.length;
+    const avgReplyLabel = avgReplyMs === null ? "--"
+      : avgReplyMs < 60_000 ? `${Math.round(avgReplyMs / 1000)}s`
+      : avgReplyMs < 3_600_000 ? `${Math.round(avgReplyMs / 60_000)}m`
+      : `${(avgReplyMs / 3_600_000).toFixed(1)}h`;
+
+    // My queue — tickets assigned to current agent that are active
+    const myQueue = tickets
+      .filter(t => t.agent === currentUser?.name && (t.status === "Open" || t.status === "In Progress"))
+      .sort((a, b) => b.id.localeCompare(a.id))
+      .slice(0, 5);
+
+    // Issue breakdown percentages
+    const total = tickets.length || 1;
+    const issuePcts = [
+      { label: "Withdrawal",          color: "bg-purple-500", count: tickets.filter(t => t.issue === "Withdrawal Issue").length },
+      { label: "Restr. Withdrawals",  color: "bg-purple-400", count: tickets.filter(t => t.issue === "Restricted Withdrawals").length },
+      { label: "Deposits",            color: "bg-blue-400",   count: tickets.filter(t => t.issue === "Deposits").length },
+      { label: "Blocked Accounts",    color: "bg-red-400",    count: tickets.filter(t => t.issue === "Blocked Accounts").length },
+      { label: "Bet Settlement",      color: "bg-blue-500",   count: tickets.filter(t => t.issue === "Bet Settlement").length },
+      { label: "Account Access",      color: "bg-indigo-400", count: tickets.filter(t => t.issue === "Account Access").length },
+      { label: "Bonus Dispute",       color: "bg-violet-300", count: tickets.filter(t => t.issue === "Bonus Dispute").length },
+      { label: "Live Betting",        color: "bg-purple-200", count: tickets.filter(t => t.issue === "Live Betting").length },
+    ].filter(x => x.count > 0)
+     .map(x => ({ ...x, pct: Math.round((x.count / total) * 100) }))
+     .sort((a, b) => b.pct - a.pct);
+
+    // Sparkline: last 7 "days" based on ticket IDs bucketed into groups of 2
+    const buckets   = 7;
+    const sorted    = [...tickets].sort((a, b) => a.id.localeCompare(b.id));
+    const chunkSize = Math.max(1, Math.ceil(sorted.length / buckets));
+    const sparkData = Array.from({ length: buckets }, (_, i) =>
+      sorted.slice(i * chunkSize, (i + 1) * chunkSize).length
+    );
+
+    return { openCount, resolvedCount, unassignedCount, slaBreachCount, avgReplyLabel, myQueue, recentTickets, issuePcts, sparkData };
+  }, [tickets, slaPolicy, currentUser?.name]);
+
+  const { openCount, resolvedCount, unassignedCount, slaBreachCount, avgReplyLabel, myQueue, recentTickets, issuePcts, sparkData } = dashStats;
 
   // Computed feed from real ticket audit logs
   const computedFeed = useMemo(() => {
@@ -274,15 +308,16 @@ export default function Dashboard() {
             </div>
 
             {!hydrated ? (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {[1,2,3].map(i => <SkeletonCard key={i} />)}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[1,2,3,4].map(i => <SkeletonCard key={i} />)}
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {[
-                  { icon: AlertCircle,  label: "OPEN TICKETS",  value: String(openCount),     sub: "currently active",  color: "text-purple-600",  bg: "bg-purple-50",  spark: sparkData,  href: "/tickets?status=Open" },
-                  { icon: CheckCircle2, label: "RESOLVED",      value: String(resolvedCount), sub: "tickets closed",    color: "text-emerald-600", bg: "bg-emerald-50", spark: null,       href: "/tickets?status=Resolved" },
-                  { icon: Clock,        label: "AVG RESPONSE",  value: "8m",                  sub: "SLA target: 10m",   color: "text-blue-600",    bg: "bg-blue-50",    spark: null,       href: "/tickets" },
+                  { icon: AlertCircle,  label: "OPEN",         value: String(openCount),      sub: "currently active",                   color: "text-purple-600",  bg: "bg-purple-50",  spark: sparkData, href: "/tickets?status=Open" },
+                  { icon: CheckCircle2, label: "RESOLVED",     value: String(resolvedCount),  sub: "tickets closed",                     color: "text-emerald-600", bg: "bg-emerald-50", spark: null,      href: "/tickets?status=Resolved" },
+                  { icon: ShieldAlert,  label: "SLA BREACHES", value: String(slaBreachCount), sub: slaBreachCount === 0 ? "all on track" : "need attention",       color: slaBreachCount > 0 ? "text-red-600" : "text-emerald-600", bg: slaBreachCount > 0 ? "bg-red-50" : "bg-emerald-50", spark: null, href: "/tickets" },
+                  { icon: UserX,        label: "UNASSIGNED",   value: String(unassignedCount),sub: unassignedCount === 0 ? "queue clear" : "need assignment",       color: unassignedCount > 0 ? "text-amber-600" : "text-emerald-600", bg: unassignedCount > 0 ? "bg-amber-50" : "bg-emerald-50", spark: null, href: "/tickets" },
                 ].map(({ icon: Icon, label, value, sub, color, bg, spark, href }) => (
                   <Link key={label} href={href}
                     className="rounded-xl p-4 group transition-all duration-150 hover:scale-[1.02] hover:shadow-md cursor-pointer"
@@ -373,8 +408,8 @@ export default function Dashboard() {
             {!hydrated ? (
               <><SkeletonCard /><SkeletonCard /></>
             ) : [
-              { icon: Users,      label: "TEAM",       value: String(agentCount), sub: agentCount === 1 ? "agent registered" : "agents registered", color: "text-purple-600", bg: "bg-purple-50", href: "/users" },
-              { icon: TrendingUp, label: "CSAT SCORE", value: "--",               sub: "no data yet",                                                                  color: "text-blue-600",   bg: "bg-blue-50",   href: "/analytics" },
+              { icon: Users, label: "TEAM",        value: String(agentCount),   sub: agentCount === 1 ? "agent registered" : "agents registered", color: "text-purple-600", bg: "bg-purple-50", href: "/users" },
+              { icon: Clock, label: "AVG REPLY",   value: avgReplyLabel,        sub: avgReplyLabel === "--" ? "no data yet" : "first response time", color: "text-blue-600",  bg: "bg-blue-50",  href: "/analytics" },
             ].map(({ icon: Icon, label, value, sub, color, bg, href }) => (
               <Link key={label} href={href}
                 className="rounded-2xl p-5 group transition-all duration-150 hover:scale-[1.02] hover:shadow-md cursor-pointer"
@@ -390,6 +425,50 @@ export default function Dashboard() {
                 </div>
               </Link>
             ))}
+          </div>
+
+          {/* My Queue */}
+          <div className="rounded-2xl p-6" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-label-caps text-[#48484a] mb-1">Assigned to me</p>
+                <h3 className="text-base font-semibold text-[#1a1c1c] tracking-tight">My Queue</h3>
+              </div>
+              <Link href="/tickets?agentView=Mine"
+                className="text-sm font-medium text-purple-600 hover:text-purple-700 transition-colors flex items-center gap-1">
+                View all <ArrowRight size={13} />
+              </Link>
+            </div>
+            {!hydrated ? (
+              <div className="flex flex-col gap-2">
+                {[1,2,3].map(i => <SkeletonTableRow key={i} cols={2} />)}
+              </div>
+            ) : myQueue.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 gap-2">
+                <CheckCircle2 size={28} className="text-emerald-400" />
+                <p className="text-sm font-medium text-[#1a1c1c]">Queue clear!</p>
+                <p className="text-xs text-[#48484a]">No open tickets assigned to you</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {myQueue.map(t => (
+                  <Link key={t.id} href={`/tickets?open=${t.id}`}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors"
+                    style={{ background: "var(--surface-low)" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "var(--surface-lowest)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "var(--surface-low)")}>
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${t.priority === "High" ? "bg-red-400" : t.priority === "Medium" ? "bg-amber-400" : "bg-emerald-400"}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-purple-600">{t.id}</p>
+                      <p className="text-xs text-[#1a1c1c] truncate">{t.customer} — {t.issue}</p>
+                    </div>
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                      t.status === "Open" ? "bg-purple-50 text-purple-700" : "bg-blue-50 text-blue-700"
+                    }`}>{t.status}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Issue breakdown — animated bars */}

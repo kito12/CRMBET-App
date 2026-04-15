@@ -403,6 +403,8 @@ export default function DataProvider({ children }: { children: React.ReactNode }
             // Execute actions
             for (const action of rule.actions) {
               if (action.type === "assign_agent") {
+                // Data-level guard: if already assigned by another session, mark fired and skip
+                if (ticket.agent !== "Unassigned") { firedAutomations.current.add(firedKey); continue; }
                 if (firedAutomations.current.has(firedKey)) continue;
                 let assignTo = action.value;
                 if (assignTo === "round_robin") {
@@ -466,6 +468,8 @@ export default function DataProvider({ children }: { children: React.ReactNode }
               }
 
               if (action.type === "change_status") {
+                // Data-level guard: skip if already in target status
+                if (ticket.status === action.value) { firedAutomations.current.add(firedKey); continue; }
                 if (firedAutomations.current.has(firedKey)) continue;
                 const auditEntry: AuditEntry = {
                   id: `audit-auto-status-${t.id}-${Date.now()}`,
