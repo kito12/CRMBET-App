@@ -39,10 +39,10 @@ export default function Dashboard() {
       </div>
 
       {/* 60/40 grid */}
-      <div className="grid grid-cols-5 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
 
         {/* LEFT — 60% (3 cols) */}
-        <div className="col-span-3 flex flex-col gap-6">
+        <div className="lg:col-span-3 flex flex-col gap-6">
 
           {/* Hero summary card */}
           <div className="rounded-2xl p-7" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
@@ -57,7 +57,7 @@ export default function Dashboard() {
               </Link>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {[
                 { icon: AlertCircle, label: "OPEN TICKETS", value: "47", sub: "+3 since yesterday", color: "text-purple-600", bg: "bg-purple-50" },
                 { icon: CheckCircle2, label: "RESOLVED TODAY", value: "23", sub: "↑ 12% vs avg", color: "text-emerald-600", bg: "bg-emerald-50" },
@@ -87,14 +87,13 @@ export default function Dashboard() {
               </Link>
             </div>
 
-            <div className="flex flex-col gap-2">
-              {/* Header row */}
+            {/* Desktop table */}
+            <div className="hidden sm:flex flex-col gap-2">
               <div className="grid grid-cols-[1fr_1.4fr_1.4fr_1fr_0.7fr] gap-3 px-3 mb-1">
                 {["TICKET", "CUSTOMER", "ISSUE", "STATUS", "AGENT"].map((h) => (
                   <span key={h} className="text-label-caps text-[#48484a]">{h}</span>
                 ))}
               </div>
-
               {recentTickets.map((ticket) => (
                 <div key={ticket.id}
                   className="grid grid-cols-[1fr_1.4fr_1.4fr_1fr_0.7fr] gap-3 items-center px-3 py-3 rounded-xl transition-all duration-150 hover:cursor-pointer"
@@ -110,11 +109,28 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+            {/* Mobile cards */}
+            <div className="flex sm:hidden flex-col gap-2">
+              {recentTickets.map((ticket) => (
+                <div key={ticket.id} className="flex items-center justify-between px-3 py-3 rounded-xl"
+                  style={{ background: "var(--surface-low)" }}>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-sm font-semibold text-purple-600">{ticket.id}</span>
+                      <StatusPill status={ticket.status} />
+                    </div>
+                    <p className="text-sm text-[#1a1c1c] truncate">{ticket.customer}</p>
+                    <p className="text-xs text-[#48484a]">{ticket.issue} · {ticket.agent}</p>
+                  </div>
+                  <span className="text-xs text-[#48484a] flex-shrink-0 ml-2">{ticket.time}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
         {/* RIGHT — 40% (2 cols) */}
-        <div className="col-span-2 flex flex-col gap-6">
+        <div className="lg:col-span-2 flex flex-col gap-6">
 
           {/* Metric cards */}
           <div className="grid grid-cols-2 gap-4">

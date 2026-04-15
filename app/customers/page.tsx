@@ -79,7 +79,7 @@ export default function CustomersPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-4 gap-5 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
           { label: "TOTAL CLIENTS",   value: customers.length,                                    sub: "all time",           color: "text-purple-600", bg: "bg-purple-50" },
           { label: "ACTIVE",          value: customers.filter(c => c.status === "Active").length, sub: "currently active",   color: "text-emerald-600",bg: "bg-emerald-50" },
@@ -112,8 +112,42 @@ export default function CustomersPage() {
         />
       </div>
 
-      {/* Table */}
-      <div className="rounded-2xl overflow-hidden" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
+      {/* Mobile card list */}
+      <div className="flex md:hidden flex-col gap-2 mb-4">
+        {paginated.length === 0 ? (
+          <p className="text-center text-sm text-[#48484a] py-12">No customers found.</p>
+        ) : paginated.map((customer) => {
+          const clientTickets = tickets.filter(t => t.clientId === customer.clientId);
+          const openCount = clientTickets.filter(t => t.status === "Open" || t.status === "In Progress").length;
+          return (
+            <Link key={customer.clientId} href={`/customers/${customer.clientId}`}
+              className="flex items-center gap-3 p-4 rounded-2xl transition-all"
+              style={{ background: "var(--surface-lowest)", boxShadow: "0 2px 12px 0 rgba(26,28,28,0.06)" }}>
+              <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+                {customer.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <p className="text-sm font-semibold text-[#1a1c1c] truncate">{customer.name}</p>
+                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${accountTypePill[customer.accountType]}`}>
+                    {customer.accountType}
+                  </span>
+                </div>
+                <p className="text-xs text-[#48484a] truncate">{customer.email}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className={`w-1.5 h-1.5 rounded-full ${statusDot[customer.status]}`} />
+                  <span className="text-xs text-[#48484a]">{customer.status}</span>
+                  <span className="text-xs text-[#48484a]">· {clientTickets.length} ticket{clientTickets.length !== 1 ? "s" : ""}</span>
+                  {openCount > 0 && <span className="text-xs px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">{openCount} open</span>}
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Desktop Table */}
+      <div className="hidden md:block rounded-2xl overflow-hidden" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
         {/* Header */}
         <div className="grid grid-cols-[1fr_1.6fr_1.4fr_1.1fr_0.9fr_0.8fr_0.7fr] gap-4 px-6 py-3" style={{ background: "var(--surface-low)" }}>
           {["CLIENT ID", "CUSTOMER", "EMAIL", "PHONE", "ACCOUNT", "STATUS", "TICKETS"].map((h) => (

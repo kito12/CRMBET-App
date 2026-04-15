@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { MessageSquare, Send, Hash, AtSign, Search } from "lucide-react";
+import { MessageSquare, Send, Hash, AtSign, Search, ArrowLeft } from "lucide-react";
 import { tickets } from "@/lib/data";
 import type { Ticket } from "@/lib/data";
 import { StatusPill, PriorityPill } from "@/components/ui/StatusPill";
@@ -150,6 +150,7 @@ function RenderParts({ parts, isMe }: { parts: Part[]; isMe: boolean }) {
 
 export default function MessagesPage() {
   const [selectedId, setSelectedId]       = useState("sarah");
+  const [mobileView, setMobileView]       = useState<"list" | "chat">("list");
   const [conversations, setConversations] = useState<Conversations>(seedConversations);
   const [unread, setUnread]               = useState<Record<string, number>>(seedUnread);
   const [input, setInput]                 = useState("");
@@ -266,10 +267,10 @@ export default function MessagesPage() {
       </div>
 
       {/* Chat layout */}
-      <div className="flex-1 grid grid-cols-[280px_1fr] gap-5 min-h-0">
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-[280px_1fr] gap-5 min-h-0">
 
         {/* ── LEFT: Agent list ── */}
-        <div className="flex flex-col rounded-2xl overflow-hidden min-h-0"
+        <div className={`${mobileView === "chat" ? "hidden" : "flex"} md:flex flex-col rounded-2xl overflow-hidden min-h-0`}
           style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
 
           <div className="p-3 flex-shrink-0">
@@ -288,7 +289,7 @@ export default function MessagesPage() {
               const u = unread[agent.id] ?? 0;
               const isSelected = selectedId === agent.id;
               return (
-                <button key={agent.id} onClick={() => setSelectedId(agent.id)}
+                <button key={agent.id} onClick={() => { setSelectedId(agent.id); setMobileView("chat"); }}
                   className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-left transition-all duration-150"
                   style={{ background: isSelected ? "var(--surface-low)" : "transparent" }}
                   onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = "var(--surface-low)"; }}
@@ -326,12 +327,16 @@ export default function MessagesPage() {
         </div>
 
         {/* ── RIGHT: Chat area ── */}
-        <div className="flex flex-col rounded-2xl overflow-hidden min-h-0"
+        <div className={`${mobileView === "list" ? "hidden" : "flex"} md:flex flex-col rounded-2xl overflow-hidden min-h-0`}
           style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
 
           {/* Chat header */}
-          <div className="flex items-center gap-3 px-6 py-4 flex-shrink-0"
+          <div className="flex items-center gap-3 px-4 md:px-6 py-4 flex-shrink-0"
             style={{ background: "var(--surface-low)", borderBottom: "1px solid rgba(204,195,215,0.1)" }}>
+            <button onClick={() => setMobileView("list")}
+              className="md:hidden w-8 h-8 flex items-center justify-center rounded-xl text-[#48484a] hover:bg-white transition-colors flex-shrink-0">
+              <ArrowLeft size={16} />
+            </button>
             <div className="relative">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-semibold"
                 style={{ background: selectedAgent.color }}>

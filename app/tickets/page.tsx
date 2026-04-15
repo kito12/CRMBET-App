@@ -172,8 +172,8 @@ export default function TicketsPage() {
       {/* Filters */}
       <div className="flex flex-col gap-3 mb-6">
         {/* Row 1: search + agent view tabs */}
-        <div className="flex items-center gap-3">
-          <div className="relative max-w-xs w-full">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="relative w-full sm:max-w-xs">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#48484a]" />
             <input type="text" placeholder="Search tickets, client ID..." value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -193,7 +193,7 @@ export default function TicketsPage() {
           </div>
         </div>
         {/* Row 2: status filters */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
           {statusFilters.map(f => (
             <button key={f} onClick={() => setActiveFilter(f)}
               className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-all duration-150 ${activeFilter === f ? "gradient-primary text-white shadow-float" : "text-[#48484a] hover:bg-[#f3f3f3]"}`}
@@ -205,8 +205,44 @@ export default function TicketsPage() {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="rounded-2xl overflow-hidden" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
+      {/* Mobile card list */}
+      <div className="flex md:hidden flex-col gap-2 mb-6">
+        {paginated.length === 0 ? (
+          <p className="text-center text-sm text-[#48484a] py-12">No tickets match your search.</p>
+        ) : paginated.map(ticket => (
+          <div key={ticket.id} onClick={() => setSelectedTicket(ticket)}
+            className="group rounded-2xl p-4 cursor-pointer transition-all"
+            style={{ background: "var(--surface-lowest)", boxShadow: "0 2px 12px 0 rgba(26,28,28,0.06)" }}>
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-purple-600">{ticket.id}</span>
+                <PriorityPill priority={ticket.priority} />
+              </div>
+              <div className="flex items-center gap-2">
+                <StatusPill status={ticket.status} />
+                {ticket.status !== "Resolved" && (
+                  <button onClick={(e) => quickResolve(e, ticket.id)}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 transition-all">
+                    <CheckCircle2 size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+            <p className="text-sm font-medium text-[#1a1c1c] mb-0.5">{ticket.customer}</p>
+            <p className="text-xs text-[#48484a] mb-2">{ticket.issue} · {ticket.phone}</p>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-[#48484a]">{ticket.agent}</span>
+              <div className="flex items-center gap-1.5">
+                <span className={`w-1.5 h-1.5 rounded-full ${getSLADotClass(ticket.created, ticket.status)}`} />
+                <span className="text-xs text-[#48484a]">{ticket.created}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop Table */}
+      <div className="hidden md:block rounded-2xl overflow-hidden" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
         <div className="grid grid-cols-[0.7fr_0.8fr_1.3fr_1.1fr_0.9fr_0.8fr_0.8fr_0.8fr_0.9fr_36px] gap-3 px-6 py-3" style={{ background: "var(--surface-low)" }}>
           {["TICKET","CLIENT ID","CUSTOMER","PHONE","ISSUE TYPE","PRIORITY","STATUS","AGENT","CREATED",""].map(h => (
             <span key={h} className="text-label-caps text-[#48484a]">{h}</span>

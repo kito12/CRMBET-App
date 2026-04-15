@@ -80,10 +80,10 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
       </Link>
 
       {/* 60/40 layout */}
-      <div className="grid grid-cols-5 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
 
         {/* LEFT — profile + tickets */}
-        <div className="col-span-3 flex flex-col gap-6">
+        <div className="lg:col-span-3 flex flex-col gap-6">
 
           {/* Profile card */}
           <div className="rounded-2xl p-7" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
@@ -118,7 +118,7 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
                   <CopyButton text={customer.clientId} size={11} />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {[
                     { icon: Mail,     value: customer.email,                      copyable: true  },
                     { icon: Phone,    value: customer.phone,                      copyable: true  },
@@ -178,7 +178,7 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
         </div>
 
         {/* RIGHT — stats */}
-        <div className="col-span-2 flex flex-col gap-5">
+        <div className="lg:col-span-2 flex flex-col gap-5">
 
           {/* Ticket stats */}
           <div className="rounded-2xl p-6" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>

@@ -118,7 +118,7 @@ export default function UsersPage() {
       </div>
 
       {/* Metric cards */}
-      <div className="grid grid-cols-3 gap-5 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         {[
           { icon: Users, label: "TOTAL AGENTS", value: agents.length.toString(), sub: `${online} currently online`, color: "text-purple-600", bg: "bg-purple-50" },
           { icon: Clock, label: "ONLINE NOW", value: online.toString(), sub: `${agents.length - online} offline or on break`, color: "text-emerald-600", bg: "bg-emerald-50" },
@@ -151,7 +151,7 @@ export default function UsersPage() {
       </div>
 
       {/* Agent grid */}
-      <div className="grid grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
         {filtered.map((agent) => (
           <div
             key={agent.id}

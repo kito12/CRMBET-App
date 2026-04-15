@@ -77,7 +77,7 @@ export default function SettingsPage() {
             <p className="text-xs text-[#48484a]">{profile.role} · {profile.email}</p>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {[
             { label: "Full Name", key: "name", type: "text" },
             { label: "Email", key: "email", type: "email" },
@@ -142,7 +142,7 @@ export default function SettingsPage() {
           </div>
           <h2 className="text-base font-semibold text-[#1a1c1c]">CRM Settings</h2>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>CRM Name</label>
             <input value={crm.name} onChange={(e) => setCrm({ ...crm, name: e.target.value })}

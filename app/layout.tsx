@@ -30,7 +30,7 @@ export default function RootLayout({
         <ThemeProvider>
           <CommandPaletteProvider>
             <Sidebar />
-            <main className="ml-16 min-h-screen p-8">
+            <main className="md:ml-16 min-h-screen p-4 md:p-8 pb-24 md:pb-8">
               {children}
             </main>
           </CommandPaletteProvider>
