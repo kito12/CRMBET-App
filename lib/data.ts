@@ -149,7 +149,7 @@ export const defaultAutomations: AutomationRule[] = [
 export const defaultEscalationSettings: EscalationSettings = {
   enabled: true,
   thresholdHours: 4,
-  tier2Agent: "James R.",
+  tier2Agent: "",
   headOfficeUrl: "",
 };
 

@@ -69,6 +69,12 @@ function ticketAgeMs(t: { created: string; createdAt?: string }, now: number): n
   return now - parseCreatedMs(t.created);
 }
 
+// Remove undefined values from an object — Firestore rejects documents with undefined fields
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function stripUndefined(obj: Record<string, any>): Record<string, any> {
+  return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
+}
+
 // Diff two arrays and write only changed/new/deleted docs to Firestore
 // keyFn extracts the Firestore doc ID from an item (default: item.id)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -80,7 +86,7 @@ async function syncDocs<T>(collName: string, prev: T[], next: T[], keyFn: (item:
 
   nextMap.forEach((item, id) => {
     if (prevMap.get(id) !== JSON.stringify(item)) {
-      batch.set(doc(db, collName, id), item as object);
+      batch.set(doc(db, collName, id), stripUndefined(item as Record<string, unknown>));
       ops++;
     }
   });
@@ -237,7 +243,13 @@ export default function DataProvider({ children }: { children: React.ReactNode }
         markLoaded("escalation");
         return;
       }
-      const data = snap.data() as EscalationSettings;
+      let data = snap.data() as EscalationSettings;
+      // One-time migration: clear the legacy "James R." seed value so tickets
+      // stop being auto-assigned to a placeholder agent.
+      if (data.tier2Agent === "James R.") {
+        data = { ...data, tier2Agent: "" };
+        setDoc(doc(db, "settings", "escalation"), data).catch(console.error);
+      }
       _setEscalationSettings(data); escalRef.current = data; markLoaded("escalation");
     });
 
@@ -318,23 +330,24 @@ export default function DataProvider({ children }: { children: React.ReactNode }
 
           if (escalRef.current.enabled && ageHours >= escalRef.current.thresholdHours && !t.escalated) {
             changed = true;
-            const escalatedTo = escalRef.current.tier2Agent;
+            const escalatedTo = escalRef.current.tier2Agent.trim();
             // Never reassign if a human explicitly set the agent (manualAgent flag),
-            // and only hand off to tier-2 if still unassigned.
+            // only hand off to tier-2 if still unassigned AND a tier-2 agent is configured.
             const alreadyAssigned = t.agent !== "Unassigned" || t.manualAgent === true;
-            const newAgent = alreadyAssigned ? t.agent : escalatedTo;
-            const noteText = alreadyAssigned
-              ? `Escalated flag set after ${escalRef.current.thresholdHours}h — ticket remains with ${t.agent}.`
-              : `Auto-escalated to ${escalatedTo} after ${escalRef.current.thresholdHours}h without resolution.`;
+            const canReassign = escalatedTo && !alreadyAssigned;
+            const newAgent = canReassign ? escalatedTo : t.agent;
+            const noteText = canReassign
+              ? `Auto-escalated to ${escalatedTo} after ${escalRef.current.thresholdHours}h without resolution.`
+              : `Escalated flag set after ${escalRef.current.thresholdHours}h — ticket remains with ${t.agent || "Unassigned"}.`;
             setNotifications(ns => {
               if (ns.some(n => n.ticketId === t.id && n.type === "escalated")) return ns;
               return [{
                 id: `n-esc-${t.id}`,
                 type: "escalated" as const,
                 ticketId: t.id,
-                message: alreadyAssigned
-                  ? `${t.id} SLA escalation flagged — assigned to ${t.agent}`
-                  : `${t.id} auto-escalated to ${escalatedTo} after ${escalRef.current.thresholdHours}h`,
+                message: canReassign
+                  ? `${t.id} auto-escalated to ${escalatedTo} after ${escalRef.current.thresholdHours}h`
+                  : `${t.id} SLA escalation flagged — assigned to ${t.agent || "Unassigned"}`,
                 timestamp: nowLabel(),
                 read: false,
               }, ...ns];
