@@ -51,40 +51,40 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const userRef  = doc(db, "users", firebaseUser.uid);
-        const userSnap = await getDoc(userRef);
-        const email    = firebaseUser.email ?? "";
-        const role: UserRole = isAdminEmail(email) ? "admin" : "agent";
-        const name  = firebaseUser.displayName ?? email.split("@")[0];
-        const photo = firebaseUser.photoURL ?? undefined;
+      try {
+        if (firebaseUser) {
+          const email = firebaseUser.email ?? "";
+          const name  = firebaseUser.displayName ?? email.split("@")[0];
+          const photo = firebaseUser.photoURL ?? undefined;
+          const role: UserRole = isAdminEmail(email) ? "admin" : "agent";
 
-        if (!userSnap.exists()) {
-          await setDoc(userRef, {
-            uid: firebaseUser.uid, email, name, role, photo: photo ?? null,
-            createdAt: serverTimestamp(), active: true,
-          });
+          try {
+            const userRef  = doc(db, "users", firebaseUser.uid);
+            const userSnap = await getDoc(userRef);
+
+            if (!userSnap.exists()) {
+              await setDoc(userRef, {
+                uid: firebaseUser.uid, email, name, role,
+                photo: photo ?? null,
+                createdAt: serverTimestamp(), active: true,
+              });
+            } else {
+              const data = userSnap.data();
+              const resolvedRole: UserRole = isAdminEmail(email) ? "admin" : (data.role as UserRole ?? "agent");
+              await setDoc(userRef, { name, photo: photo ?? null, role: resolvedRole }, { merge: true });
+            }
+          } catch (firestoreErr) {
+            // Firestore failed — still sign the user in with basic info
+            console.warn("Firestore write failed, using auth data only:", firestoreErr);
+          }
+
           setUser({ uid: firebaseUser.uid, email, name, role, photo });
         } else {
-          const data = userSnap.data();
-          const resolvedRole: UserRole = isAdminEmail(email) ? "admin" : (data.role as UserRole ?? "agent");
-          if (isAdminEmail(email) && data.role !== "admin") {
-            await setDoc(userRef, { role: "admin" }, { merge: true });
-          }
-          // Keep name/photo fresh from Google
-          await setDoc(userRef, { name, photo: photo ?? null }, { merge: true });
-          setUser({
-            uid:   firebaseUser.uid,
-            email: data.email ?? email,
-            name,
-            role:  resolvedRole,
-            photo,
-          });
+          setUser(null);
         }
-      } else {
-        setUser(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
     return unsub;
   }, []);
