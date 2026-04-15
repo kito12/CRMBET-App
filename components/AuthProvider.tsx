@@ -7,7 +7,7 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
 export type UserRole = "admin" | "agent";
@@ -21,10 +21,11 @@ export interface AuthUser {
 }
 
 interface AuthContextType {
-  user:          AuthUser | null;
-  loading:       boolean;
-  signInGoogle:  () => Promise<void>;
-  signOut:       () => Promise<void>;
+  user:         AuthUser | null;
+  loading:      boolean;
+  authError:    string;
+  signInGoogle: () => Promise<void>;
+  signOut:      () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -43,11 +44,25 @@ function isAdminEmail(email: string) {
   return list.includes(email.toLowerCase());
 }
 
+async function isInvited(email: string): Promise<boolean> {
+  try {
+    const q = query(
+      collection(db, "invites"),
+      where("email", "==", email.toLowerCase())
+    );
+    const snap = await getDocs(q);
+    return !snap.empty;
+  } catch {
+    return false;
+  }
+}
+
 const googleProvider = new GoogleAuthProvider();
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser]       = useState<AuthUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user,      setUser]      = useState<AuthUser | null>(null);
+  const [loading,   setLoading]   = useState(true);
+  const [authError, setAuthError] = useState("");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -56,7 +71,21 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           const email = firebaseUser.email ?? "";
           const name  = firebaseUser.displayName ?? email.split("@")[0];
           const photo = firebaseUser.photoURL ?? undefined;
-          const role: UserRole = isAdminEmail(email) ? "admin" : "agent";
+
+          // Check access: must be admin or invited
+          const admin   = isAdminEmail(email);
+          const invited = admin ? true : await isInvited(email);
+
+          if (!invited) {
+            // Not authorised — sign out immediately
+            await firebaseSignOut(auth);
+            setAuthError("Your account hasn't been granted access. Contact your administrator.");
+            setUser(null);
+            return;
+          }
+
+          const role: UserRole = admin ? "admin" : "agent";
+          setAuthError("");
 
           try {
             const userRef  = doc(db, "users", firebaseUser.uid);
@@ -70,12 +99,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
               });
             } else {
               const data = userSnap.data();
-              const resolvedRole: UserRole = isAdminEmail(email) ? "admin" : (data.role as UserRole ?? "agent");
+              const resolvedRole: UserRole = admin ? "admin" : (data.role as UserRole ?? "agent");
               await setDoc(userRef, { name, photo: photo ?? null, role: resolvedRole }, { merge: true });
             }
-          } catch (firestoreErr) {
-            // Firestore failed — still sign the user in with basic info
-            console.warn("Firestore write failed, using auth data only:", firestoreErr);
+          } catch (err) {
+            console.warn("Firestore write failed:", err);
           }
 
           setUser({ uid: firebaseUser.uid, email, name, role, photo });
@@ -90,6 +118,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const signInGoogle = useCallback(async () => {
+    setAuthError("");
     await signInWithPopup(auth, googleProvider);
   }, []);
 
@@ -98,7 +127,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, signInGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, loading, authError, signInGoogle, signOut }}>
       {children}
     </AuthContext.Provider>
   );

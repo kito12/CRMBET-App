@@ -6,10 +6,13 @@ import { Zap } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 
 export default function LoginPage() {
-  const { signInGoogle, user, loading } = useAuth();
+  const { signInGoogle, user, loading, authError } = useAuth();
   const router = useRouter();
   const [error,      setError]      = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Show Firebase auth errors (e.g. not invited)
+  const displayError = authError || error;
 
   useEffect(() => {
     if (!loading && user) router.replace("/");
@@ -76,8 +79,8 @@ export default function LoginPage() {
             {submitting ? "Signing in…" : "Continue with Google"}
           </button>
 
-          {error && (
-            <p className="text-xs text-red-500 text-center mt-3">{error}</p>
+          {displayError && (
+            <p className="text-xs text-red-500 text-center mt-3">{displayError}</p>
           )}
         </div>
 
