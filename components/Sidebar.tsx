@@ -148,8 +148,8 @@ export default function Sidebar() {
                 {isTickets && openTicketCount > 0 && !active && (
                   <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full gradient-primary text-white text-[9px] font-bold flex items-center justify-center">{openTicketCount}</span>
                 )}
-                {isMessages && !active && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-pink-500 text-white text-[9px] font-bold flex items-center justify-center">2</span>
+                {isMessages && messagesUnreadCount > 0 && !active && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-pink-500 text-white text-[9px] font-bold flex items-center justify-center">{messagesUnreadCount > 9 ? "9+" : messagesUnreadCount}</span>
                 )}
               </div>
               <span className={`text-[10px] font-medium ${active ? "text-purple-600" : "text-[#48484a]"}`}>{label}</span>

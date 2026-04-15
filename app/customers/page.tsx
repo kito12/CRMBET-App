@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useDeferredValue, useMemo } from "react";
 import { Search, UserCircle, Plus, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import Link from "next/link";
 import type { Customer, AccountType, CustomerStatus } from "@/lib/data";
@@ -31,13 +31,14 @@ const defaultForm = {
 
 export default function CustomersPage() {
   const { customers, setCustomers, tickets, hydrated } = useData();
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const search = useDeferredValue(searchInput);
   const [page, setPage] = useState(1);
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState(defaultForm);
   const [clientIdError, setClientIdError] = useState("");
 
-  useEffect(() => { setPage(1); }, [search]);
+  useEffect(() => { setPage(1); }, [searchInput]);
 
   function handleAddCustomer(e: React.FormEvent) {
     e.preventDefault();
@@ -71,11 +72,11 @@ export default function CustomersPage() {
     URL.revokeObjectURL(url);
   }
 
-  const filtered = customers.filter((c) =>
+  const filtered = useMemo(() => customers.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     c.clientId.toLowerCase().includes(search.toLowerCase()) ||
     c.email.toLowerCase().includes(search.toLowerCase())
-  );
+  ), [customers, search]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
@@ -135,8 +136,8 @@ export default function CustomersPage() {
         <input
           type="text"
           placeholder="Search by name, ID or email..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
           className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm text-[#1a1c1c] placeholder:text-[#48484a] outline-none focus:ring-2 focus:ring-purple-200 transition-all"
           style={{ background: "var(--surface-low)" }}
           onFocus={(e) => (e.target.style.background = "var(--surface-lowest)")}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useDeferredValue, useMemo } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Ticket, TicketPriority, TicketStatus, AuditEntry } from "@/lib/data";
@@ -89,7 +89,8 @@ export default function TicketsPage() {
     });
   }, []);
 
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const search = useDeferredValue(searchInput);
   const [activeFilter, setActiveFilter] = useState<string>("All");
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -134,7 +135,7 @@ export default function TicketsPage() {
   }, [hydrated]);
 
   // Reset page when filter/search changes
-  useEffect(() => { setPage(1); }, [search, activeFilter, agentView, dateRange, agentFilter]);
+  useEffect(() => { setPage(1); }, [searchInput, activeFilter, agentView, dateRange, agentFilter]);
 
   function handleClientIdChange(val: string) {
     const match = customers.find(c => c.clientId.toLowerCase() === val.toLowerCase());
@@ -145,8 +146,8 @@ export default function TicketsPage() {
     }
   }
 
-  const dateBounds = getDateBounds(dateRange);
-  const filtered = tickets.filter((t) => {
+  const dateBounds = useMemo(() => getDateBounds(dateRange), [dateRange]);
+  const filtered = useMemo(() => tickets.filter((t) => {
     const matchesSearch =
       t.customer.toLowerCase().includes(search.toLowerCase()) ||
       t.id.toLowerCase().includes(search.toLowerCase()) ||
@@ -165,7 +166,7 @@ export default function TicketsPage() {
       return d >= dateBounds.from && d <= dateBounds.to;
     })();
     return matchesSearch && matchesStatus && matchesAgentView && matchesAgentFilter && matchesDate;
-  });
+  }), [tickets, search, activeFilter, agentView, agentFilter, dateBounds, currentUser?.name]);
 
   const extraFilterCount = (dateRange !== "all" ? 1 : 0) + (agentFilter !== "all" ? 1 : 0);
   function clearExtraFilters() { setDateRange("all"); setAgentFilter("all"); }
@@ -270,8 +271,8 @@ export default function TicketsPage() {
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative w-full sm:max-w-xs">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#48484a]" />
-            <input type="text" placeholder="Search tickets, client ID..." value={search}
-              onChange={(e) => setSearch(e.target.value)}
+            <input type="text" placeholder="Search tickets, client ID..." value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm text-[#1a1c1c] placeholder:text-[#48484a] outline-none focus:ring-2 focus:ring-purple-200 transition-all"
               style={{ background: "var(--surface-low)" }}
               onFocus={(e) => (e.target.style.background = "var(--surface-lowest)")}

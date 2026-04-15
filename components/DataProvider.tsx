@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import {
-  collection, doc, onSnapshot, writeBatch, setDoc, query, where,
+  collection, doc, onSnapshot, writeBatch, setDoc, query, where, limit,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "./AuthProvider";
@@ -178,17 +178,17 @@ export default function DataProvider({ children }: { children: React.ReactNode }
       }
     }
 
-    const unsubTickets = onSnapshot(collection(db, "tickets"), snap => {
+    const unsubTickets = onSnapshot(query(collection(db, "tickets"), limit(500)), snap => {
       const docs = snap.docs.map(d => d.data() as Ticket);
       _setTickets(docs); ticketsRef.current = docs; markLoaded("tickets");
     });
 
-    const unsubCustomers = onSnapshot(collection(db, "customers"), snap => {
+    const unsubCustomers = onSnapshot(query(collection(db, "customers"), limit(1000)), snap => {
       const docs = snap.docs.map(d => d.data() as Customer);
       _setCustomers(docs); customersRef.current = docs; markLoaded("customers");
     });
 
-    const unsubNotifs = onSnapshot(collection(db, "notifications"), snap => {
+    const unsubNotifs = onSnapshot(query(collection(db, "notifications"), limit(100)), snap => {
       const docs = snap.docs.map(d => d.data() as AppNotification);
       _setNotifications(docs); notifsRef.current = docs; markLoaded("notifs");
     });

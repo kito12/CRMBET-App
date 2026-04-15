@@ -46,7 +46,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Sidebar />
-      <main className="md:ml-16 min-h-screen p-4 md:p-8 pb-24 md:pb-8">
+      <main key={pathname} className="page-enter md:ml-16 min-h-screen p-4 md:p-8 pb-24 md:pb-8">
         {children}
       </main>
     </>
