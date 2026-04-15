@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Zap, CheckCircle2, AlertCircle, ChevronDown } from "lucide-react";
-import { useData } from "@/components/DataProvider";
-import type { TicketPriority, TicketStatus } from "@/lib/data";
+import { doc, setDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 const ISSUE_TYPES = [
   "Withdrawal Issue",
@@ -30,13 +30,12 @@ function nowLabel() {
 }
 
 export default function SubmitPage() {
-  const { tickets, setTickets } = useData();
-
   const [form, setForm]           = useState(emptyForm);
   const [errors, setErrors]       = useState<Partial<typeof emptyForm>>({});
   const [submitted, setSubmitted] = useState(false);
   const [ticketId, setTicketId]   = useState("");
   const [loading, setLoading]     = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   function validate() {
     const e: Partial<typeof emptyForm> = {};
@@ -49,38 +48,41 @@ export default function SubmitPage() {
     return e;
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
     setLoading(true);
-    // Small delay to feel like a real submission
-    setTimeout(() => {
-      const nextNum = tickets.length
-        ? Math.max(...tickets.map(t => parseInt(t.id.replace("TKT-", "")) || 0)) + 1
-        : 1001;
-      const newId = `TKT-${nextNum}`;
+    setSubmitError("");
 
-      setTickets(prev => [{
-        id: newId,
-        clientId: form.clientId.trim() || "—",
-        customer: form.name.trim(),
-        email: form.email.trim(),
-        phone: form.phone.trim(),
-        issue: form.issue,
-        priority: "Medium" as TicketPriority,
-        status: "Open" as TicketStatus,
-        agent: "Unassigned",
-        created: nowLabel(),
+    try {
+      // Generate a unique ticket ID using timestamp
+      const newId = `TKT-${Date.now()}`;
+
+      await setDoc(doc(db, "tickets", newId), {
+        id:          newId,
+        clientId:    form.clientId.trim() || "—",
+        customer:    form.name.trim(),
+        email:       form.email.trim(),
+        phone:       form.phone.trim(),
+        issue:       form.issue,
+        priority:    "Medium",
+        status:      "Open",
+        agent:       "Unassigned",
+        created:     nowLabel(),
         description: form.description.trim(),
-        source: "web_form",
-      }, ...prev]);
+        source:      "web_form",
+      });
 
       setTicketId(newId);
       setSubmitted(true);
+    } catch (err) {
+      console.error("Submit failed:", err);
+      setSubmitError("Something went wrong. Please try again.");
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   }
 
   function handleReset() {
@@ -88,6 +90,7 @@ export default function SubmitPage() {
     setErrors({});
     setSubmitted(false);
     setTicketId("");
+    setSubmitError("");
   }
 
   const inputBase = "w-full px-4 py-3 rounded-xl text-sm text-[#1a1c1c] outline-none focus:ring-2 focus:ring-purple-300 transition-all bg-white border border-[rgba(204,195,215,0.4)] placeholder:text-[#9ca3af]";
@@ -107,7 +110,7 @@ export default function SubmitPage() {
           </p>
           <div className="px-5 py-3.5 rounded-2xl mb-8" style={{ background: "rgba(113,49,214,0.06)" }}>
             <p className="text-xs text-[#48484a] mb-1">Your reference number</p>
-            <p className="text-2xl font-bold text-purple-700 tracking-wide">{ticketId}</p>
+            <p className="text-lg font-bold text-purple-700 tracking-wide font-mono">{ticketId}</p>
             <p className="text-xs text-[#48484a] mt-1">Save this for future correspondence</p>
           </div>
           <button onClick={handleReset}
@@ -140,7 +143,7 @@ export default function SubmitPage() {
         {/* Card header */}
         <div className="px-8 py-7" style={{ background: "linear-gradient(135deg, #7131d6, #0058bf)" }}>
           <h1 className="text-xl font-bold text-white mb-1">Submit a Support Request</h1>
-          <p className="text-sm text-purple-200">We'll get back to you as soon as possible</p>
+          <p className="text-sm text-purple-200">We&apos;ll get back to you as soon as possible</p>
         </div>
 
         {/* Form body */}
@@ -239,6 +242,12 @@ export default function SubmitPage() {
               <p className="flex items-center gap-1 text-xs text-red-500 mt-1.5"><AlertCircle size={11} />{errors.description}</p>
             )}
           </div>
+
+          {submitError && (
+            <p className="flex items-center gap-1.5 text-xs text-red-500 bg-red-50 px-3 py-2.5 rounded-xl">
+              <AlertCircle size={13} />{submitError}
+            </p>
+          )}
 
           <button
             type="submit"
