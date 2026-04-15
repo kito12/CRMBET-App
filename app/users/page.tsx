@@ -70,6 +70,15 @@ export default function UsersPage() {
     });
   }, [isAdmin]);
 
+  // Auto-clean stale invites: if an invite email already has a user account, delete it
+  useEffect(() => {
+    if (!isAdmin || invites.length === 0 || users.length === 0) return;
+    const userEmails = new Set(users.map(u => u.email.toLowerCase()));
+    const stale = invites.filter(i => userEmails.has(i.email.toLowerCase()));
+    if (stale.length === 0) return;
+    Promise.all(stale.map(i => deleteDoc(doc(db, "invites", i.id)))).catch(console.error);
+  }, [users, invites, isAdmin]);
+
   async function sendInvite(e: React.FormEvent) {
     e.preventDefault();
     const email = inviteEmail.trim().toLowerCase();

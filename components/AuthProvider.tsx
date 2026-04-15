@@ -88,6 +88,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
               const data = userSnap.data();
               role = admin ? "admin" : (data.role as UserRole ?? "agent");
               await setDoc(userRef, { name, photo: photo ?? null, role }, { merge: true });
+              // Clean up any stale invite for this email (handles agents who joined before the auto-cleanup fix)
+              consumeInvite(email).catch(() => {});
             } else {
               // New user — must be admin or invited; consuming the invite removes it from pending
               const invited = admin ? true : await consumeInvite(email);
