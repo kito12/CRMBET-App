@@ -9,7 +9,7 @@ import {
   defaultEscalationSettings,
 } from "@/lib/data";
 import type {
-  Customer, Ticket, AppNotification, CannedResponse, EscalationSettings,
+  Customer, Ticket, AppNotification, CannedResponse, EscalationSettings, AuditEntry,
 } from "@/lib/data";
 
 const CURRENT_AGENT = "Sarah K.";
@@ -133,6 +133,14 @@ export default function DataProvider({ children }: { children: React.ReactNode }
                 read: false,
               }, ...ns];
             });
+            const auditEntry: AuditEntry = {
+              id: `audit-esc-${t.id}-${Date.now()}`,
+              action: "escalated",
+              from: t.agent,
+              to: escalatedTo,
+              author: "System",
+              timestamp: nowLabel(),
+            };
             return {
               ...t,
               escalated: true,
@@ -145,6 +153,7 @@ export default function DataProvider({ children }: { children: React.ReactNode }
                 text: `Auto-escalated to ${escalatedTo} after ${escalationSettings.thresholdHours}h without resolution.`,
                 timestamp: nowLabel(),
               }],
+              auditLog: [auditEntry, ...(t.auditLog ?? [])],
             };
           }
           return t;

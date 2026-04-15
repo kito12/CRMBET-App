@@ -22,6 +22,17 @@ export interface Note {
   timestamp: string;
 }
 
+export type AuditAction = "created" | "status_changed" | "agent_changed" | "priority_changed" | "escalated" | "note_added";
+
+export interface AuditEntry {
+  id: string;
+  action: AuditAction;
+  from?: string;
+  to?: string;
+  author: string;
+  timestamp: string;
+}
+
 export interface Ticket {
   id: string;
   clientId: string;
@@ -40,6 +51,7 @@ export interface Ticket {
   escalatedAt?: string;
   escalatedTo?: string;
   source?: "web_form" | "agent";
+  auditLog?: AuditEntry[];
 }
 
 export interface AppNotification {

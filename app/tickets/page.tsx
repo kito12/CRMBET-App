@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { Ticket, TicketPriority, TicketStatus } from "@/lib/data";
+import type { Ticket, TicketPriority, TicketStatus, AuditEntry } from "@/lib/data";
 import { useData } from "@/components/DataProvider";
 import { StatusPill, PriorityPill } from "@/components/ui/StatusPill";
-import { Search, Plus, Link2, Download, ChevronLeft, ChevronRight, CheckCircle2, LayoutList, Columns } from "lucide-react";
+import { Search, Plus, Link2, Download, ChevronLeft, ChevronRight, CheckCircle2, LayoutList, Columns, SlidersHorizontal, X } from "lucide-react";
 import CopyButton from "@/components/ui/CopyButton";
 import Modal from "@/components/ui/Modal";
 import { InputField, SelectField, TextareaField } from "@/components/ui/FormField";
@@ -14,10 +14,33 @@ import { SkeletonTableRow } from "@/components/ui/Skeleton";
 
 const statusFilters = ["All", "Open", "In Progress", "Resolved", "On Hold"] as const;
 const agents = ["Unassigned", "Sarah K.", "James R.", "Tom H.", "Mia S.", "Daniel P.", "Omar K.", "Yuki T."];
-const CURRENT_AGENT = "Sarah K."; // would come from auth in production
+const CURRENT_AGENT = "Sarah K.";
 const agentViews = ["All", "Mine", "Unassigned"] as const;
 type AgentView = typeof agentViews[number];
+type DateRange = "all" | "today" | "yesterday" | "7d" | "30d";
 const ITEMS_PER_PAGE = 10;
+
+function parseTicketDate(created: string): Date | null {
+  try {
+    const m = created.match(/^(\w{3})\s+(\d+),\s+(\d{2}):(\d{2})$/);
+    if (!m) return null;
+    const months: Record<string, number> = { Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11 };
+    const d = new Date(new Date().getFullYear(), months[m[1]], +m[2], +m[3], +m[4]);
+    if (d > new Date()) d.setFullYear(d.getFullYear() - 1);
+    return d;
+  } catch { return null; }
+}
+
+function getDateBounds(range: DateRange): { from: Date; to: Date } | null {
+  if (range === "all") return null;
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (range === "today")     return { from: startOfToday, to: now };
+  if (range === "yesterday") return { from: new Date(startOfToday.getTime() - 86400000), to: startOfToday };
+  if (range === "7d")        return { from: new Date(now.getTime() - 7 * 86400000), to: now };
+  if (range === "30d")       return { from: new Date(now.getTime() - 30 * 86400000), to: now };
+  return null;
+}
 
 const emptyForm = {
   clientId: "", customer: "", email: "", phone: "",
@@ -52,6 +75,9 @@ export default function TicketsPage() {
   const [page, setPage]           = useState(1);
   const [agentView, setAgentView] = useState<AgentView>("All");
   const [viewMode, setViewMode]   = useState<"table" | "board">("table");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [dateRange, setDateRange]     = useState<DateRange>("all");
+  const [agentFilter, setAgentFilter] = useState<string>("all");
 
   // Handle URL params: ?open=TKT-XXXX, ?new=1, ?clientId=CLT-XXXX
   useEffect(() => {
@@ -85,7 +111,7 @@ export default function TicketsPage() {
   }, [hydrated]);
 
   // Reset page when filter/search changes
-  useEffect(() => { setPage(1); }, [search, activeFilter, agentView]);
+  useEffect(() => { setPage(1); }, [search, activeFilter, agentView, dateRange, agentFilter]);
 
   function handleClientIdChange(val: string) {
     const match = customers.find(c => c.clientId.toLowerCase() === val.toLowerCase());
@@ -96,6 +122,7 @@ export default function TicketsPage() {
     }
   }
 
+  const dateBounds = getDateBounds(dateRange);
   const filtered = tickets.filter((t) => {
     const matchesSearch =
       t.customer.toLowerCase().includes(search.toLowerCase()) ||
@@ -103,12 +130,22 @@ export default function TicketsPage() {
       t.clientId.toLowerCase().includes(search.toLowerCase()) ||
       t.issue.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = activeFilter === "All" || t.status === activeFilter;
-    const matchesAgent =
+    const matchesAgentView =
       agentView === "All" ? true :
       agentView === "Mine" ? t.agent === CURRENT_AGENT :
       t.agent === "Unassigned";
-    return matchesSearch && matchesStatus && matchesAgent;
+    const matchesAgentFilter = agentFilter === "all" || t.agent === agentFilter;
+    const matchesDate = (() => {
+      if (!dateBounds) return true;
+      const d = parseTicketDate(t.created);
+      if (!d) return true;
+      return d >= dateBounds.from && d <= dateBounds.to;
+    })();
+    return matchesSearch && matchesStatus && matchesAgentView && matchesAgentFilter && matchesDate;
   });
+
+  const extraFilterCount = (dateRange !== "all" ? 1 : 0) + (agentFilter !== "all" ? 1 : 0);
+  function clearExtraFilters() { setDateRange("all"); setAgentFilter("all"); }
 
   function quickResolve(e: React.MouseEvent, ticketId: string) {
     e.stopPropagation();
@@ -149,10 +186,12 @@ export default function TicketsPage() {
     const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     const label = `${months[now.getMonth()]} ${now.getDate()}, ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
     const nextNum = Math.max(...tickets.map(t => parseInt(t.id.replace("TKT-", "")))) + 1;
+    const createdEntry: AuditEntry = { id: `a-create-${Date.now()}`, action: "created", author: "You", timestamp: label };
     setTickets(prev => [{
       id: `TKT-${nextNum}`, clientId: form.clientId || "—", customer: form.customer,
       email: form.email, phone: form.phone, issue: form.issue, priority: form.priority,
       status: "Open" as TicketStatus, agent: form.agent, created: label, description: form.description,
+      auditLog: [createdEntry],
     }, ...prev]);
     setForm(emptyForm); setErrors({}); setModalOpen(false);
   }
@@ -222,17 +261,74 @@ export default function TicketsPage() {
             ))}
           </div>
         </div>
-        {/* Row 2: status filters */}
+        {/* Row 2: status filters + Filters button */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
           {statusFilters.map(f => (
             <button key={f} onClick={() => setActiveFilter(f)}
-              className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-all duration-150 ${activeFilter === f ? "gradient-primary text-white shadow-float" : "text-[#48484a] hover:bg-[#f3f3f3]"}`}
+              className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-all duration-150 whitespace-nowrap ${activeFilter === f ? "gradient-primary text-white shadow-float" : "text-[#48484a] hover:bg-[#f3f3f3]"}`}
               style={activeFilter !== f ? { background: "var(--surface-lowest)" } : {}}>
               {f}
             </button>
           ))}
-          <span className="ml-2 text-xs text-[#48484a]">{filtered.length} ticket{filtered.length !== 1 ? "s" : ""}</span>
+          <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+            <span className="text-xs text-[#48484a] whitespace-nowrap">{filtered.length} ticket{filtered.length !== 1 ? "s" : ""}</span>
+            <button onClick={() => setFiltersOpen(v => !v)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${filtersOpen || extraFilterCount > 0 ? "gradient-primary text-white" : "text-[#48484a] hover:bg-[#f3f3f3]"}`}
+              style={!filtersOpen && extraFilterCount === 0 ? { background: "var(--surface-lowest)" } : {}}>
+              <SlidersHorizontal size={13} />
+              Filters
+              {extraFilterCount > 0 && (
+                <span className="w-4 h-4 rounded-full bg-white/25 text-white text-[9px] font-bold flex items-center justify-center">{extraFilterCount}</span>
+              )}
+            </button>
+          </div>
         </div>
+
+        {/* Row 3: collapsible extra filters */}
+        {filtersOpen && (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 rounded-2xl" style={{ background: "var(--surface-low)" }}>
+            {/* Date range */}
+            <div className="flex flex-col gap-1.5 flex-1">
+              <span className="text-xs font-semibold text-[#48484a] uppercase tracking-wide">Date Range</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {([
+                  { value: "all",       label: "All time" },
+                  { value: "today",     label: "Today" },
+                  { value: "yesterday", label: "Yesterday" },
+                  { value: "7d",        label: "Last 7 days" },
+                  { value: "30d",       label: "Last 30 days" },
+                ] as { value: DateRange; label: string }[]).map(opt => (
+                  <button key={opt.value} onClick={() => setDateRange(opt.value)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${dateRange === opt.value ? "gradient-primary text-white" : "text-[#48484a] hover:bg-white"}`}
+                    style={dateRange !== opt.value ? { background: "var(--surface-lowest)" } : {}}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="w-px h-10 hidden sm:block bg-[rgba(204,195,215,0.3)]" />
+
+            {/* Agent filter */}
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold text-[#48484a] uppercase tracking-wide">Agent</span>
+              <select value={agentFilter} onChange={e => setAgentFilter(e.target.value)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium outline-none focus:ring-2 focus:ring-purple-200 transition-all"
+                style={{ background: "var(--surface-lowest)" }}>
+                <option value="all">All Agents</option>
+                {agents.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </div>
+
+            {/* Clear */}
+            {extraFilterCount > 0 && (
+              <button onClick={clearExtraFilters}
+                className="flex items-center gap-1 text-xs text-[#48484a] hover:text-red-500 transition-colors px-2 py-1 rounded-lg hover:bg-red-50">
+                <X size={11} /> Clear filters
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Kanban Board ── */}
