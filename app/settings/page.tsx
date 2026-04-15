@@ -6,6 +6,7 @@ import {
   MessageSquare, Plus, Pencil, Trash2, Check, X, ChevronDown, Link2, Copy,
 } from "lucide-react";
 import { useData } from "@/components/DataProvider";
+import { useAuth } from "@/components/AuthProvider";
 import type { CannedResponse } from "@/lib/data";
 
 function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
@@ -34,10 +35,14 @@ const blankCanned = (): Omit<CannedResponse, "id"> => ({ title: "", category: "G
 
 export default function SettingsPage() {
   const { escalationSettings, setEscalationSettings, cannedResponses, setCannedResponses } = useData();
+  const { user, signOut } = useAuth();
 
   /* ── Profile / Notifications / CRM local state ── */
   const [profile, setProfile] = useState({
-    name: "John D.", email: "john@betcrm.com", role: "Senior Agent", timezone: "UTC+0",
+    name: user?.name ?? "Agent",
+    email: user?.email ?? "",
+    role: user?.role === "admin" ? "Team Lead" : "Agent",
+    timezone: "UTC+0",
   });
   const [notifications, setNotifications] = useState({
     newTickets: true, assignedToMe: true, statusChanges: false, dailyDigest: true,
@@ -110,12 +115,25 @@ export default function SettingsPage() {
           <div className="w-7 h-7 rounded-lg gradient-primary flex items-center justify-center"><User size={13} className="text-white" /></div>
           <h2 className="text-base font-semibold text-[#1a1c1c]">Profile</h2>
         </div>
-        <div className="flex items-center gap-4 mb-6 p-4 rounded-xl" style={{ background: "var(--surface-low)" }}>
-          <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center text-white text-lg font-semibold flex-shrink-0">JD</div>
-          <div>
-            <p className="text-sm font-semibold text-[#1a1c1c]">{profile.name}</p>
-            <p className="text-xs text-[#48484a]">{profile.role} · {profile.email}</p>
+        <div className="flex items-center justify-between mb-6 p-4 rounded-xl" style={{ background: "var(--surface-low)" }}>
+          <div className="flex items-center gap-4">
+            {user?.photo ? (
+              <img src={user.photo} alt={user.name} className="w-14 h-14 rounded-2xl object-cover flex-shrink-0" />
+            ) : (
+              <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center text-white text-lg font-semibold flex-shrink-0">
+                {user?.name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() ?? "??"}
+              </div>
+            )}
+            <div>
+              <p className="text-sm font-semibold text-[#1a1c1c]">{profile.name}</p>
+              <p className="text-xs text-[#48484a]">{profile.role} · {profile.email}</p>
+            </div>
           </div>
+          <button onClick={signOut}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-red-600 hover:bg-red-50 transition-colors flex-shrink-0"
+            style={{ border: "1px solid rgba(239,68,68,0.2)" }}>
+            Sign out
+          </button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {([{ label: "Full Name", key: "name", type: "text" }, { label: "Email", key: "email", type: "email" }] as const).map(({ label, key, type }) => (

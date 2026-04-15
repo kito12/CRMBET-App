@@ -117,18 +117,15 @@ export default function Sidebar() {
         </button>
 
         {/* Avatar + sign out */}
-        <div className="relative group">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white cursor-pointer"
+        <div className="relative group flex flex-col items-center gap-1">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white"
             style={{ background: "linear-gradient(135deg, #7131d6, #0058bf)" }}
             title={user?.name ?? "Account"}>
             {initials}
           </div>
-          {/* Sign-out tooltip on hover */}
-          <button
-            onClick={signOut}
-            className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity z-50"
-            style={{ background: "#1a1c1c", color: "#fff" }}>
-            <LogOut size={11} /> Sign out
+          <button onClick={signOut} title="Sign out"
+            className="w-8 h-8 flex items-center justify-center rounded-xl transition-all duration-200 text-[#48484a] hover:bg-red-50 hover:text-red-500">
+            <LogOut size={14} />
           </button>
         </div>
       </aside>
