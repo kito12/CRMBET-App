@@ -4,9 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Ticket, Users, UserCircle, Settings, Zap,
+  LayoutDashboard, Ticket, Users, UserCircle, Settings,
   Moon, Sun, Search, MessageSquare, Bell, BarChart2, MoreHorizontal, X, ChevronRight, LogOut,
 } from "lucide-react";
+import CrmBetLogo from "@/components/ui/CrmBetLogo";
 import { useTheme } from "./ThemeProvider";
 import { useCommandPalette } from "./CommandPaletteProvider";
 import { useData } from "./DataProvider";
@@ -56,26 +57,26 @@ export default function Sidebar() {
   return (
     <>
       {/* ── Desktop sidebar ── */}
-      <aside className="hidden md:flex fixed left-0 top-0 h-full w-16 flex-col items-center py-6 gap-2 z-40"
+      <aside className="hidden md:flex fixed left-0 top-0 h-full w-16 flex-col items-center py-5 gap-1 z-40"
         style={{ background: "var(--surface-lowest)", boxShadow: "2px 0 24px 0 rgba(26,28,28,0.04)" }}>
 
         {/* Logo */}
-        <div className="mb-4 flex items-center justify-center w-9 h-9 rounded-xl gradient-primary">
-          <Zap size={16} className="text-white" />
+        <div className="flex items-center justify-center w-10 h-10 rounded-xl gradient-primary mb-2">
+          <CrmBetLogo size={18} className="text-white" />
         </div>
 
         {/* Search / ⌘K */}
         <button onClick={openPalette} title="Search (⌘K)"
-          className="relative group flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 text-[#48484a] hover:bg-[#f3f3f3] mb-1">
-          <Search size={16} />
+          className="relative group flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 text-[#48484a] hover:bg-[#f3f3f3]">
+          <Search size={18} />
           <span className="absolute left-14 px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-50"
             style={{ background: "#1a1c1c", color: "#fff" }}>Search ⌘K</span>
         </button>
 
         {/* Bell / notifications */}
         <button onClick={() => setNotifOpen(v => !v)} title="Notifications"
-          className="relative group flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 text-[#48484a] hover:bg-[#f3f3f3] mb-2">
-          <Bell size={16} />
+          className="relative group flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 text-[#48484a] hover:bg-[#f3f3f3]">
+          <Bell size={18} />
           {unreadCount > 0 && (
             <span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
               {unreadCount > 9 ? "9+" : unreadCount}
@@ -86,6 +87,9 @@ export default function Sidebar() {
             Notifications {unreadCount > 0 ? `(${unreadCount})` : ""}
           </span>
         </button>
+
+        {/* Divider */}
+        <div className="w-6 my-1" style={{ height: "1px", background: "rgba(148,163,184,0.18)" }} />
 
         {/* Nav items */}
         <nav className="flex flex-col gap-1 flex-1">
@@ -111,23 +115,27 @@ export default function Sidebar() {
           })}
         </nav>
 
+        {/* Divider */}
+        <div className="w-6 my-1" style={{ height: "1px", background: "rgba(148,163,184,0.18)" }} />
+
+        {/* Theme toggle */}
         <button onClick={toggle} title={theme === "dark" ? "Light mode" : "Dark mode"}
           className="w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 text-[#48484a] hover:bg-[#f3f3f3]">
-          {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+          {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
         </button>
 
-        {/* Avatar + sign out */}
-        <div className="relative group flex flex-col items-center gap-1">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white"
-            style={{ background: "linear-gradient(135deg, #7131d6, #0058bf)" }}
-            title={user?.name ?? "Account"}>
-            {initials}
-          </div>
-          <button onClick={signOut} title="Sign out"
-            className="w-8 h-8 flex items-center justify-center rounded-xl transition-all duration-200 text-[#48484a] hover:bg-red-50 hover:text-red-500">
-            <LogOut size={14} />
-          </button>
+        {/* Avatar */}
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-semibold text-white flex-shrink-0"
+          style={{ background: "linear-gradient(135deg, #7131d6, #0058bf)" }}
+          title={user?.name ?? "Account"}>
+          {initials}
         </div>
+
+        {/* Sign out */}
+        <button onClick={signOut} title="Sign out"
+          className="w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 text-[#48484a] hover:bg-red-50 hover:text-red-500">
+          <LogOut size={18} />
+        </button>
       </aside>
 
       {/* ── Mobile bottom nav (5 items max) ── */}

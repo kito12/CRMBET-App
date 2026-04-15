@@ -10,6 +10,7 @@ import { db } from "@/lib/firebase";
 import { useData } from "@/components/DataProvider";
 import { useAuth } from "@/components/AuthProvider";
 import type { CannedResponse, AutomationRule, AutomationCondition, AutomationAction } from "@/lib/data";
+import CrmBetLogo from "@/components/ui/CrmBetLogo";
 
 function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
@@ -906,7 +907,7 @@ export default function SettingsPage() {
           <h2 className="text-base font-semibold text-[#1a1c1c]">About</h2>
         </div>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center"><Zap size={16} className="text-white" /></div>
+          <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center"><CrmBetLogo size={16} className="text-white" /></div>
           <div>
             <p className="text-sm font-semibold text-[#1a1c1c]">BetCRM v1.0</p>
             <p className="text-xs text-[#48484a]">Customer support platform for betting operations</p>

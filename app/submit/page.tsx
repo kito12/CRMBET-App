@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Zap, CheckCircle2, AlertCircle, ChevronDown } from "lucide-react";
+import { CheckCircle2, AlertCircle, ChevronDown } from "lucide-react";
+import CrmBetLogo from "@/components/ui/CrmBetLogo";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -153,7 +154,7 @@ export default function SubmitPage() {
       <div className="flex items-center gap-2.5 mb-8">
         <div className="w-9 h-9 rounded-xl flex items-center justify-center"
           style={{ background: "linear-gradient(135deg, #7131d6, #0058bf)" }}>
-          <Zap size={16} className="text-white" />
+          <CrmBetLogo size={16} className="text-white" />
         </div>
         <span className="text-lg font-bold text-[#1a1c1c]">BetCRM</span>
         <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">Support</span>

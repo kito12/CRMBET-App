@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Zap } from "lucide-react";
+import CrmBetLogo from "@/components/ui/CrmBetLogo";
 import { useAuth } from "@/components/AuthProvider";
 
 export default function LoginPage() {
@@ -46,7 +46,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center mb-4 shadow-lg">
-            <Zap size={24} className="text-white" />
+            <CrmBetLogo size={24} className="text-white" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--on-surface)" }}>
             BetCRM
