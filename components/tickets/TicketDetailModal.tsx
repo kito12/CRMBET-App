@@ -66,13 +66,15 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
   const [form, setForm]             = useState<Ticket | null>(null);
   const [dirty, setDirty]           = useState(false);
   const [noteText, setNoteText]     = useState("");
+  const [replyText, setReplyText]   = useState("");
   const [showTemplates, setShowTemplates] = useState(false);
   const [templateSearch, setTemplateSearch] = useState("");
   const [insertedId, setInsertedId] = useState<string | null>(null);
   const templateRef = useRef<HTMLDivElement>(null);
+  const replyRef    = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (ticket) { setForm({ ...ticket }); setDirty(false); setNoteText(""); setShowTemplates(false); }
+    if (ticket) { setForm({ ...ticket }); setDirty(false); setNoteText(""); setReplyText(""); setShowTemplates(false); }
   }, [ticket]);
 
   useEffect(() => {
@@ -114,23 +116,41 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
   }
 
   // ── Canned response insertion ───────────────────────────────────────────────
-  function insertTemplate(id: string, body: string, title: string) {
+  function insertTemplate(id: string, body: string) {
     if (!form) return;
     const filled = body
       .replace(/\{\{customer_name\}\}/g, form.customer)
       .replace(/\{\{ticket_id\}\}/g, form.id);
-    update("description", (form.description ? form.description + "\n\n" : "") + filled);
+    setReplyText(prev => prev ? prev + "\n\n" + filled : filled);
     setInsertedId(id);
     setShowTemplates(false);
+    setTemplateSearch("");
     setTimeout(() => setInsertedId(null), 2000);
+    // Focus the reply box after inserting
+    setTimeout(() => replyRef.current?.focus(), 50);
   }
 
   // ── WhatsApp deep link ─────────────────────────────────────────────────────
   function openWhatsApp() {
-    if (!form) return;
+    if (!form || !replyText.trim()) return;
     const phone = formatPhone(form.phone);
-    const text  = encodeURIComponent(form.description ?? "");
+    const text  = encodeURIComponent(replyText.trim());
     window.open(`https://wa.me/${phone}?text=${text}`, "_blank");
+  }
+
+  // ── Log reply as internal note ─────────────────────────────────────────────
+  function sendReplyAsNote() {
+    if (!replyText.trim() || !form) return;
+    const note: Note = {
+      id: Date.now().toString(),
+      author: "You (reply)",
+      text: replyText.trim(),
+      timestamp: nowLabel(),
+    };
+    const updated: Ticket = { ...form, notes: [...(form.notes ?? []), note] };
+    setForm(updated);
+    onSave(updated);
+    setReplyText("");
   }
 
   // ── Manual escalation ──────────────────────────────────────────────────────
@@ -276,19 +296,16 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
             </div>
           </div>
 
-          {/* Description + canned responses picker */}
+          {/* Description */}
+          <div className="mb-6">
+            <TextareaField label="Description" value={form.description ?? ""} onChange={e => update("description", e.target.value)} placeholder="Describe the issue..." />
+          </div>
+
+          {/* Customer Reply */}
           <div className="mb-6 relative" ref={templateRef}>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-medium text-[#48484a] uppercase tracking-wide">Description / Notes</label>
+              <label className="block text-xs font-medium text-[#48484a] uppercase tracking-wide">Customer Reply</label>
               <div className="flex items-center gap-2">
-                {/* WhatsApp share */}
-                {form.phone && form.description && (
-                  <button onClick={openWhatsApp}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-emerald-700 hover:bg-emerald-50 transition-colors"
-                    style={{ background: "rgba(16,185,129,0.08)" }}>
-                    <Smartphone size={12} /> Send via WhatsApp
-                  </button>
-                )}
                 {/* Canned responses */}
                 <button onClick={() => setShowTemplates(v => !v)}
                   className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-purple-600 hover:bg-purple-50 transition-colors"
@@ -321,7 +338,7 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
                       <p className="text-label-caps text-[#48484a] px-4 pt-3 pb-1">{cat}</p>
                       {filteredCanned.filter(cr => cr.category === cat).map(cr => (
                         <button key={cr.id}
-                          onClick={() => insertTemplate(cr.id, cr.body, cr.title)}
+                          onClick={() => insertTemplate(cr.id, cr.body)}
                           className="w-full flex items-center justify-between px-4 py-2.5 text-left transition-all hover:bg-[rgba(113,49,214,0.04)]">
                           <div>
                             <p className="text-sm font-medium text-[#1a1c1c]">{cr.title}</p>
@@ -339,7 +356,34 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
               </div>
             )}
 
-            <TextareaField label="" value={form.description ?? ""} onChange={e => update("description", e.target.value)} placeholder="Add notes about this ticket..." />
+            <textarea
+              ref={replyRef}
+              rows={4}
+              value={replyText}
+              onChange={e => setReplyText(e.target.value)}
+              placeholder="Type a reply to the customer, or insert a template above…"
+              className="w-full px-4 py-3 rounded-xl text-sm text-[#1a1c1c] outline-none resize-none transition-all focus:ring-2 focus:ring-purple-200 placeholder:text-[#48484a] leading-relaxed"
+              style={{ background: "var(--surface-low)" }}
+              onFocus={e => (e.target.style.background = "var(--surface-lowest)")}
+              onBlur={e => (e.target.style.background = "var(--surface-low)")}
+            />
+
+            {/* Reply action bar */}
+            {replyText.trim() && (
+              <div className="flex items-center gap-2 mt-2 justify-end">
+                <button onClick={sendReplyAsNote}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#48484a] hover:bg-[#f3f3f3] transition-colors">
+                  <MessageSquare size={12} /> Log as Note
+                </button>
+                {form.phone && (
+                  <button onClick={openWhatsApp}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-700 hover:bg-emerald-50 transition-colors"
+                    style={{ background: "rgba(16,185,129,0.08)" }}>
+                    <Smartphone size={12} /> Send via WhatsApp
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Internal Notes */}
