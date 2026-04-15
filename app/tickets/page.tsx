@@ -7,7 +7,7 @@ import type { Ticket, TicketPriority, TicketStatus, AuditEntry } from "@/lib/dat
 import { useData } from "@/components/DataProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { StatusPill, PriorityPill } from "@/components/ui/StatusPill";
-import { Search, Plus, Link2, Download, ChevronLeft, ChevronRight, CheckCircle2, LayoutList, Columns, SlidersHorizontal, X, Bookmark, Trash2, UserCheck2, RefreshCw } from "lucide-react";
+import { Search, Plus, Link2, Download, ChevronLeft, ChevronRight, CheckCircle2, LayoutList, Columns, SlidersHorizontal, X, Bookmark, Trash2, UserCheck2, RefreshCw, Crown } from "lucide-react";
 import CopyButton from "@/components/ui/CopyButton";
 import Modal from "@/components/ui/Modal";
 import { InputField, SelectField, TextareaField } from "@/components/ui/FormField";
@@ -88,6 +88,11 @@ function getSLADotClass(ticket: Ticket, policy: { firstReplyMinutes: number; res
   return "bg-red-400";
 }
 
+// Helper to check if a ticket belongs to a VIP customer
+function isVIPTicket(ticket: Ticket, customers: { clientId: string; accountType: string }[]): boolean {
+  return customers.find(c => c.clientId === ticket.clientId)?.accountType === "VIP";
+}
+
 export default function TicketsPage() {
   const { tickets, setTickets, customers, hydrated, slaPolicy } = useData();
   const { user: currentUser } = useAuth();
@@ -114,6 +119,7 @@ export default function TicketsPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [dateRange, setDateRange]     = useState<DateRange>("all");
   const [agentFilter, setAgentFilter] = useState<string>("all");
+  const [vipOnly, setVipOnly]         = useState(false);
 
   // Saved filter presets
   const [presets, setPresets]           = useState<FilterPreset[]>([]);
@@ -157,12 +163,20 @@ export default function TicketsPage() {
   }, [hydrated]);
 
   // Reset page when filter/search changes
-  useEffect(() => { setPage(1); }, [searchInput, activeFilter, agentView, dateRange, agentFilter]);
+  useEffect(() => { setPage(1); }, [searchInput, activeFilter, agentView, dateRange, agentFilter, vipOnly]);
 
   function handleClientIdChange(val: string) {
     const match = customers.find(c => c.clientId.toLowerCase() === val.toLowerCase());
     if (match) {
-      setForm(f => ({ ...f, clientId: val, customer: match.name, email: match.email, phone: match.phone }));
+      setForm(f => ({
+        ...f,
+        clientId: val,
+        customer: match.name,
+        email: match.email,
+        phone: match.phone,
+        // VIP customers always get High priority automatically
+        priority: match.accountType === "VIP" ? "High" : f.priority,
+      }));
     } else {
       setForm(f => ({ ...f, clientId: val }));
     }
@@ -187,16 +201,21 @@ export default function TicketsPage() {
       if (!d) return true;
       return d >= dateBounds.from && d <= dateBounds.to;
     })();
-    return matchesSearch && matchesStatus && matchesAgentView && matchesAgentFilter && matchesDate;
+    const matchesVip = !vipOnly || isVIPTicket(t, customers);
+    return matchesSearch && matchesStatus && matchesAgentView && matchesAgentFilter && matchesDate && matchesVip;
   }).sort((a, b) => {
-    // Latest first — prefer ISO timestamp, fall back to display label
+    // VIP open/in-progress tickets always float to the top
+    const aIsVip = (a.status !== "Resolved" && isVIPTicket(a, customers)) ? 1 : 0;
+    const bIsVip = (b.status !== "Resolved" && isVIPTicket(b, customers)) ? 1 : 0;
+    if (bIsVip !== aIsVip) return bIsVip - aIsVip;
+    // Then latest first — prefer ISO timestamp, fall back to display label
     const aTime = a.createdAt ? new Date(a.createdAt).getTime() : parseTicketDate(a)?.getTime() ?? 0;
     const bTime = b.createdAt ? new Date(b.createdAt).getTime() : parseTicketDate(b)?.getTime() ?? 0;
     return bTime - aTime;
-  }), [tickets, search, activeFilter, agentView, agentFilter, dateBounds, currentUser?.name]);
+  }), [tickets, search, activeFilter, agentView, agentFilter, dateBounds, currentUser?.name, customers, vipOnly]);
 
-  const extraFilterCount = (dateRange !== "all" ? 1 : 0) + (agentFilter !== "all" ? 1 : 0);
-  function clearExtraFilters() { setDateRange("all"); setAgentFilter("all"); }
+  const extraFilterCount = (dateRange !== "all" ? 1 : 0) + (agentFilter !== "all" ? 1 : 0) + (vipOnly ? 1 : 0);
+  function clearExtraFilters() { setDateRange("all"); setAgentFilter("all"); setVipOnly(false); }
 
   // Load presets from localStorage on mount
   useEffect(() => {
@@ -395,7 +414,7 @@ export default function TicketsPage() {
             ))}
           </div>
         </div>
-        {/* Row 2: status filters + Filters button */}
+        {/* Row 2: status filters + VIP filter + Filters button */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
           {statusFilters.map(f => (
             <button key={f} onClick={() => setActiveFilter(f)}
@@ -404,6 +423,12 @@ export default function TicketsPage() {
               {f}
             </button>
           ))}
+          {/* VIP filter */}
+          <button onClick={() => setVipOnly(v => !v)}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium transition-all duration-150 whitespace-nowrap ${vipOnly ? "bg-purple-600 text-white shadow-float" : "text-purple-600 hover:bg-purple-50"}`}
+            style={!vipOnly ? { background: "var(--surface-lowest)", border: "1px solid rgba(147,51,234,0.25)" } : {}}>
+            <Crown size={12} /> VIP
+          </button>
           <div className="ml-auto flex items-center gap-2 flex-shrink-0">
             <span className="text-xs text-[#48484a] whitespace-nowrap">{filtered.length} ticket{filtered.length !== 1 ? "s" : ""}</span>
             <button onClick={() => setFiltersOpen(v => !v)}
@@ -552,7 +577,14 @@ export default function TicketsPage() {
                 )}
               </div>
             </div>
-            <p className="text-sm font-medium text-[#1a1c1c] mb-0.5">{ticket.customer}</p>
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <p className="text-sm font-medium text-[#1a1c1c]">{ticket.customer}</p>
+              {isVIPTicket(ticket, customers) && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-purple-50 text-purple-700 flex-shrink-0">
+                  <Crown size={8} /> VIP
+                </span>
+              )}
+            </div>
             <p className="text-xs text-[#48484a] mb-2">{ticket.issue} · {ticket.phone}</p>
             <div className="flex items-center justify-between">
               <span className="text-xs text-[#48484a]">{ticket.agent}</span>
@@ -608,6 +640,11 @@ export default function TicketsPage() {
               <div>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <p className="text-sm font-medium text-[#1a1c1c]">{ticket.customer}</p>
+                  {isVIPTicket(ticket, customers) && (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-purple-50 text-purple-700 flex-shrink-0">
+                      <Crown size={8} /> VIP
+                    </span>
+                  )}
                   {ticket.source === "web_form" && (
                     <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 text-blue-600 uppercase tracking-wide flex-shrink-0">Web</span>
                   )}

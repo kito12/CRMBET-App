@@ -96,6 +96,7 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
     const label = `${months[now.getMonth()]} ${now.getDate()}, ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
     const newId = `TKT-${Date.now()}`;
     const isManual = ticketForm.agent !== "Unassigned";
+    const effectivePriority: TicketPriority = customer.accountType === "VIP" ? "High" : ticketForm.priority;
     setTickets(prev => [{
       id: newId,
       clientId: customer.clientId,
@@ -103,7 +104,7 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
       email: customer.email,
       phone: customer.phone,
       issue: ticketForm.issue,
-      priority: ticketForm.priority,
+      priority: effectivePriority,
       status: "Open" as TicketStatus,
       agent: ticketForm.agent,
       created: label,
@@ -418,9 +419,15 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
             <SelectField label="Issue Type" value={ticketForm.issue} onChange={(e) => setTicketForm({ ...ticketForm, issue: e.target.value })}>
               {["Withdrawal Issue","Restricted Withdrawals","Deposits","Blocked Accounts","Bet Settlement","Account Access","Bonus Dispute","Live Betting","Other"].map(o => <option key={o}>{o}</option>)}
             </SelectField>
-            <SelectField label="Priority" value={ticketForm.priority} onChange={(e) => setTicketForm({ ...ticketForm, priority: e.target.value as TicketPriority })}>
-              {(["High","Medium","Low"] as TicketPriority[]).map(o => <option key={o}>{o}</option>)}
-            </SelectField>
+            <div>
+              <SelectField
+                label={customer.accountType === "VIP" ? "Priority (auto High — VIP)" : "Priority"}
+                value={customer.accountType === "VIP" ? "High" : ticketForm.priority}
+                onChange={(e) => setTicketForm({ ...ticketForm, priority: e.target.value as TicketPriority })}
+                disabled={customer.accountType === "VIP"}>
+                {(["High","Medium","Low"] as TicketPriority[]).map(o => <option key={o}>{o}</option>)}
+              </SelectField>
+            </div>
           </div>
           <SelectField label="Assign Agent" value={ticketForm.agent} onChange={(e) => setTicketForm({ ...ticketForm, agent: e.target.value })}>
             {agents.map(a => <option key={a}>{a}</option>)}
