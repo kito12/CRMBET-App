@@ -34,8 +34,6 @@ interface DataContextType {
   setCannedResponses: React.Dispatch<React.SetStateAction<CannedResponse[]>>;
   escalationSettings: EscalationSettings;
   setEscalationSettings: React.Dispatch<React.SetStateAction<EscalationSettings>>;
-  resetData: () => void;
-  clearAllData: () => void;
   hydrated: boolean;
   messagesUnreadCount: number;
 }
@@ -189,14 +187,7 @@ export default function DataProvider({ children }: { children: React.ReactNode }
         }
       }
 
-      // Only seed if this is the very first time (no initialized flag)
-      const seeded = { tickets: false, customers: false, notifs: false, canned: false };
-
-      async function seedCollection<T extends { id: string }>(collName: string, items: T[]) {
-        const batch = writeBatch(db);
-        items.forEach(item => batch.set(doc(db, collName, item.id), item as object));
-        await batch.commit();
-      }
+      let seededOnce = false; // prevents double-seed on rapid empty snapshots
 
       async function doFirstTimeSeed() {
         const batch = writeBatch(db);
@@ -211,8 +202,8 @@ export default function DataProvider({ children }: { children: React.ReactNode }
 
       // ── Tickets ──
       unsubs.push(onSnapshot(collection(db, "tickets"), async snap => {
-        if (snap.empty && !alreadyInitialized && !seeded.tickets) {
-          seeded.tickets = true;
+        if (snap.empty && !alreadyInitialized && !seededOnce) {
+          seededOnce = true;
           await doFirstTimeSeed();
           return;
         }
@@ -377,42 +368,6 @@ export default function DataProvider({ children }: { children: React.ReactNode }
     setNotifications([]);
   }, [setNotifications]);
 
-  // ── Clear data (delete everything, no re-seed) ────────────────────────────
-  const clearAllData = useCallback(async () => {
-    const deleteById = async (collName: string, ids: string[]) => {
-      if (ids.length === 0) return;
-      const batch = writeBatch(db);
-      ids.forEach(id => batch.delete(doc(db, collName, id)));
-      await batch.commit();
-    };
-    await deleteById("tickets",         ticketsRef.current.map(t => t.id));
-    await deleteById("customers",       customersRef.current.map(c => c.clientId));
-    await deleteById("notifications",   notifsRef.current.map(n => n.id));
-    await deleteById("cannedResponses", cannedRef.current.map(c => c.id));
-    // Keep settings/initialized so empty collections don't trigger auto-seed on refresh
-  }, []);
-
-  // ── Reset: delete all docs then re-seed with demo data ────────────────────
-  const resetData = useCallback(async () => {
-    const deleteById = async (collName: string, ids: string[]) => {
-      if (ids.length === 0) return;
-      const batch = writeBatch(db);
-      ids.forEach(id => batch.delete(doc(db, collName, id)));
-      await batch.commit();
-    };
-    await deleteById("tickets",         ticketsRef.current.map(t => t.id));
-    await deleteById("customers",       customersRef.current.map(c => c.clientId));
-    await deleteById("notifications",   notifsRef.current.map(n => n.id));
-    await deleteById("cannedResponses", cannedRef.current.map(c => c.id));
-
-    const seedBatch = writeBatch(db);
-    seedTickets.forEach(t         => seedBatch.set(doc(db, "tickets",         t.id),       t as object));
-    seedCustomers.forEach(c       => seedBatch.set(doc(db, "customers",       c.clientId), c as object));
-    seedNotifications.forEach(n   => seedBatch.set(doc(db, "notifications",   n.id),       n as object));
-    seedCannedResponses.forEach(c => seedBatch.set(doc(db, "cannedResponses", c.id),       c as object));
-    await seedBatch.commit();
-    await setDoc(doc(db, "settings", "escalation"), defaultEscalationSettings);
-  }, []);
 
   return (
     <DataContext.Provider value={{
@@ -421,7 +376,7 @@ export default function DataProvider({ children }: { children: React.ReactNode }
       notifications, setNotifications, addNotification, unreadCount, markAllRead, clearNotifications,
       cannedResponses, setCannedResponses,
       escalationSettings, setEscalationSettings,
-      resetData, clearAllData, hydrated, messagesUnreadCount,
+      hydrated, messagesUnreadCount,
     }}>
       {children}
     </DataContext.Provider>
