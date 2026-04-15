@@ -197,6 +197,84 @@ export const seedCannedResponses: CannedResponse[] = [
     category: "General",
     body: "Hi {{customer_name}}, thank you for contacting our support team. We've received your request and a member of our team will be in touch within 2–4 hours. Your reference number is {{ticket_id}}. We apologise for any inconvenience caused.",
   },
+  {
+    id: "cr7",
+    title: "Withdrawal Processing Delay",
+    category: "Withdrawal",
+    body: "Hi {{customer_name}}, thank you for your patience. We can confirm your withdrawal request has been received and is currently being processed. Withdrawals may take 3–5 business days depending on your payment method and bank. If you haven't received your funds after this period, please don't hesitate to contact us again quoting reference {{ticket_id}}.",
+  },
+  {
+    id: "cr8",
+    title: "Withdrawal Restricted – Active Wagering",
+    category: "Withdrawal",
+    body: "Hi {{customer_name}}, your withdrawal request is currently restricted pending fulfilment of active bonus wagering requirements. Once the required wagering is completed, withdrawals will be available as normal. You can track your progress in the 'Promotions' section of your account. If you have questions about the applicable terms, please let us know.",
+  },
+  {
+    id: "cr9",
+    title: "Deposit Not Credited",
+    category: "Deposits",
+    body: "Hi {{customer_name}}, thank you for contacting us. We understand your deposit hasn't appeared in your account yet. Deposits can occasionally take up to 30 minutes to reflect. If more than 1 hour has passed, please provide your transaction reference number and the payment method used so our payments team can investigate immediately. Reference: {{ticket_id}}.",
+  },
+  {
+    id: "cr10",
+    title: "Deposit Declined – Card Issue",
+    category: "Deposits",
+    body: "Hi {{customer_name}}, we're sorry your deposit attempt was unsuccessful. Card declines are often triggered by your bank's security settings for gambling transactions. We recommend contacting your bank to authorise payments to our platform, or alternatively trying a different method such as a bank transfer or e-wallet. If the issue persists, please let us know and we'll be happy to assist further.",
+  },
+  {
+    id: "cr11",
+    title: "Account Temporarily Locked",
+    category: "Account Access",
+    body: "Hi {{customer_name}}, your account has been temporarily locked due to multiple failed login attempts — this is an automatic security measure to protect your account. To regain access, please use the 'Forgot Password' link on the login page or reply to this message with a valid form of ID for manual verification. Your account will be restored within 1 business day.",
+  },
+  {
+    id: "cr12",
+    title: "Account Under Compliance Review",
+    category: "Blocked Accounts",
+    body: "Hi {{customer_name}}, your account has been temporarily restricted pending a routine review by our compliance team. We understand this is inconvenient and sincerely apologise for the disruption. Our team will contact you within 2–3 business days with an update. In the meantime, if you have urgent concerns, please reply quoting your reference number {{ticket_id}}.",
+  },
+  {
+    id: "cr13",
+    title: "Bet Voided – Explanation",
+    category: "Bet Settlement",
+    body: "Hi {{customer_name}}, we've reviewed your query regarding the voided bet on your account. Bets may be voided in circumstances such as event cancellation, postponement, or market suspension due to irregular activity. When a bet is voided, your full stake is returned to your account balance immediately. If you believe this decision was made in error, please provide the bet ID and we'll escalate to our trading team for a second review.",
+  },
+  {
+    id: "cr14",
+    title: "Bonus Not Applied / Expired",
+    category: "Bonus Dispute",
+    body: "Hi {{customer_name}}, thank you for reaching out about your bonus. After reviewing your account, it appears the promotion was either not opted into within the required timeframe or the qualifying criteria were not fully met. Bonuses must be claimed within the promotional period and are subject to minimum deposit requirements. If you believe you've received this message in error, please provide the promotion name and we'll investigate further.",
+  },
+  {
+    id: "cr15",
+    title: "Issue Resolved – Closing Ticket",
+    category: "General",
+    body: "Hi {{customer_name}}, we're pleased to confirm that your issue (reference: {{ticket_id}}) has now been fully resolved. Thank you for your patience throughout this process. If you experience any further issues or have additional questions, please don't hesitate to contact our support team. We value your custom and hope to continue providing you with an excellent experience.",
+  },
+  {
+    id: "cr16",
+    title: "Awaiting Your Response",
+    category: "General",
+    body: "Hi {{customer_name}}, we're following up on your support request (ref: {{ticket_id}}). We're waiting on some additional information from you in order to progress your case. Could you please provide the details requested in our previous message at your earliest convenience? If we don't hear back within 5 business days, your ticket may be automatically closed. Thank you.",
+  },
+  {
+    id: "cr17",
+    title: "Escalated to Specialist Team",
+    category: "General",
+    body: "Hi {{customer_name}}, thank you for your continued patience regarding ticket {{ticket_id}}. Your case has been escalated to our specialist team who have the expertise to resolve this matter. You can expect a detailed update within 24–48 hours. We sincerely apologise for the delay and appreciate your understanding.",
+  },
+  {
+    id: "cr18",
+    title: "Self-Exclusion Request Received",
+    category: "Responsible Gambling",
+    body: "Hi {{customer_name}}, thank you for reaching out. We take responsible gambling very seriously and are committed to supporting you. Your self-exclusion request has been received and will be processed within 24 hours. Once active, you will be unable to access your account for the requested period. For immediate support, you can contact GamCare on 0808 8020 133 or visit begambleaware.org. Your wellbeing is our priority.",
+  },
+  {
+    id: "cr19",
+    title: "Deposit Limit Confirmed",
+    category: "Responsible Gambling",
+    body: "Hi {{customer_name}}, your request to set a deposit limit on your account has been confirmed. Limit reductions take effect immediately, while increases require a 7-day cooling-off period before becoming active — this is in line with responsible gambling regulations. If you'd like to explore further support tools such as reality checks or temporary breaks, please don't hesitate to get in touch.",
+  },
 ];
 
 export const customers: Customer[] = [
