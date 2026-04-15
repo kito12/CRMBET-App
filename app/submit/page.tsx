@@ -16,6 +16,7 @@ const ISSUE_TYPES = [
 
 const emptyForm = {
   name: "",
+  clientId: "",
   email: "",
   phone: "",
   issue: "Withdrawal Issue",
@@ -63,7 +64,7 @@ export default function SubmitPage() {
 
       setTickets(prev => [{
         id: newId,
-        clientId: "—",
+        clientId: form.clientId.trim() || "—",
         customer: form.name.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),
@@ -160,6 +161,21 @@ export default function SubmitPage() {
             {errors.name && (
               <p className="flex items-center gap-1 text-xs text-red-500 mt-1.5"><AlertCircle size={11} />{errors.name}</p>
             )}
+          </div>
+
+          {/* Client ID */}
+          <div>
+            <label className="block text-xs font-semibold text-[#48484a] uppercase tracking-wide mb-1.5">
+              Client ID <span className="text-[#9ca3af] font-normal normal-case">(optional)</span>
+            </label>
+            <input
+              type="text"
+              placeholder="CLT-10042"
+              value={form.clientId}
+              onChange={e => setForm(f => ({ ...f, clientId: e.target.value }))}
+              className={inputBase}
+            />
+            <p className="text-xs text-[#9ca3af] mt-1.5">Found on your welcome email or account profile page</p>
           </div>
 
           {/* Email + Phone */}
