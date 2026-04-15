@@ -72,38 +72,43 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           const name  = firebaseUser.displayName ?? email.split("@")[0];
           const photo = firebaseUser.photoURL ?? undefined;
 
-          // Check access: must be admin or invited
-          const admin   = isAdminEmail(email);
-          const invited = admin ? true : await isInvited(email);
-
-          if (!invited) {
-            // Not authorised — sign out immediately
-            await firebaseSignOut(auth);
-            setAuthError("Your account hasn't been granted access. Contact your administrator.");
-            setUser(null);
-            return;
-          }
-
-          const role: UserRole = admin ? "admin" : "agent";
+          const admin = isAdminEmail(email);
+          let role: UserRole = admin ? "admin" : "agent";
           setAuthError("");
 
           try {
             const userRef  = doc(db, "users", firebaseUser.uid);
             const userSnap = await getDoc(userRef);
 
-            if (!userSnap.exists()) {
+            if (userSnap.exists()) {
+              // Already registered — always let them in
+              const data = userSnap.data();
+              role = admin ? "admin" : (data.role as UserRole ?? "agent");
+              await setDoc(userRef, { name, photo: photo ?? null, role }, { merge: true });
+            } else {
+              // New user — must be admin or invited
+              const invited = admin ? true : await isInvited(email);
+              if (!invited) {
+                await firebaseSignOut(auth);
+                setAuthError("Your account hasn't been granted access. Contact your administrator.");
+                setUser(null);
+                return;
+              }
               await setDoc(userRef, {
                 uid: firebaseUser.uid, email, name, role,
                 photo: photo ?? null,
                 createdAt: serverTimestamp(), active: true,
               });
-            } else {
-              const data = userSnap.data();
-              const resolvedRole: UserRole = admin ? "admin" : (data.role as UserRole ?? "agent");
-              await setDoc(userRef, { name, photo: photo ?? null, role: resolvedRole }, { merge: true });
             }
           } catch (err) {
-            console.warn("Firestore write failed:", err);
+            // Firestore failed — let admin emails through anyway
+            console.warn("Firestore error:", err);
+            if (!admin) {
+              await firebaseSignOut(auth);
+              setAuthError("Unable to verify access. Please try again.");
+              setUser(null);
+              return;
+            }
           }
 
           setUser({ uid: firebaseUser.uid, email, name, role, photo });
