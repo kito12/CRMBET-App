@@ -7,7 +7,7 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, deleteDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
 export type UserRole = "admin" | "agent";
@@ -66,6 +66,22 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [user,      setUser]      = useState<AuthUser | null>(null);
   const [loading,   setLoading]   = useState(true);
   const [authError, setAuthError] = useState("");
+
+  // ── Online presence ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!user) return;
+    const userRef = doc(db, "users", user.uid);
+    updateDoc(userRef, { online: true }).catch(() => {});
+
+    function handleVisibility() {
+      updateDoc(userRef, { online: !document.hidden }).catch(() => {});
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      updateDoc(userRef, { online: false }).catch(() => {});
+    };
+  }, [user]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -133,8 +149,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const signOut = useCallback(async () => {
+    if (user) {
+      try { await updateDoc(doc(db, "users", user.uid), { online: false }); } catch { /* ignore */ }
+    }
     await firebaseSignOut(auth);
-  }, []);
+  }, [user]);
 
   return (
     <AuthContext.Provider value={{ user, loading, authError, signInGoogle, signOut }}>

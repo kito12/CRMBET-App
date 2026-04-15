@@ -7,7 +7,7 @@ import { StatusPill, PriorityPill } from "@/components/ui/StatusPill";
 import { useData } from "@/components/DataProvider";
 import { useAuth } from "@/components/AuthProvider";
 import {
-  collection, doc, onSnapshot, addDoc, setDoc, updateDoc,
+  collection, doc, onSnapshot, addDoc, setDoc, updateDoc, deleteDoc,
   query, orderBy, where, increment as fsIncrement,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -20,6 +20,7 @@ interface TeamMember {
   email: string;
   role: "admin" | "agent";
   photo?: string | null;
+  online?: boolean;
 }
 
 interface ChatMessage {
@@ -169,6 +170,9 @@ export default function MessagesPage() {
   // Track previous counts so we don't ping on initial load
   const prevMsgCountRef = useRef(-1);
   const prevUnreadRef   = useRef(-1);
+  // Typing indicator
+  const [typingNames, setTypingNames] = useState<string[]>([]);
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Load team members from Firestore users collection ─────────────────────
   useEffect(() => {
@@ -229,6 +233,22 @@ export default function MessagesPage() {
     return unsub;
   }, [selectedId, currentUser]);
 
+  // ── Subscribe to typing indicators for active conversation ────────────────
+  useEffect(() => {
+    if (!selectedId || !currentUser) { setTypingNames([]); return; }
+    const cid = convDocId(currentUser.uid, selectedId);
+    return onSnapshot(collection(db, "conversations", cid, "typing"), snap => {
+      const now = Date.now();
+      const names: string[] = [];
+      snap.docs.forEach(d => {
+        if (d.id === currentUser.uid) return;
+        const data = d.data() as { name: string; at: string };
+        if (now - new Date(data.at).getTime() < 5000) names.push(data.name);
+      });
+      setTypingNames(names);
+    });
+  }, [selectedId, currentUser]);
+
   // ── Auto-scroll to bottom on new messages ─────────────────────────────────
   useEffect(() => {
     messagesEnd.current?.scrollIntoView({ behavior: "smooth" });
@@ -244,6 +264,19 @@ export default function MessagesPage() {
     if (last.startsWith("#"))      { setTrigger("ticket"); setTriggerQuery(last.slice(1)); }
     else if (last.startsWith("@")) { setTrigger("agent");  setTriggerQuery(last.slice(1)); }
     else                           { setTrigger(null);     setTriggerQuery(""); }
+
+    // Broadcast typing indicator
+    if (selectedId && currentUser && val.trim()) {
+      const cid = convDocId(currentUser.uid, selectedId);
+      setDoc(doc(db, "conversations", cid, "typing", currentUser.uid), {
+        name: currentUser.name,
+        at: new Date().toISOString(),
+      }).catch(() => {});
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = setTimeout(() => {
+        deleteDoc(doc(db, "conversations", cid, "typing", currentUser.uid)).catch(() => {});
+      }, 3000);
+    }
   }
 
   function insertTicket(t: Ticket) {
@@ -294,6 +327,9 @@ export default function MessagesPage() {
 
       setInput("");
       setTrigger(null);
+      // Clear typing indicator
+      if (typingTimerRef.current) { clearTimeout(typingTimerRef.current); typingTimerRef.current = null; }
+      deleteDoc(doc(db, "conversations", cid, "typing", currentUser.uid)).catch(() => {});
     } catch (err) {
       console.error("Send failed:", err);
     } finally {
@@ -413,7 +449,7 @@ export default function MessagesPage() {
                         {initials}
                       </div>
                     )}
-                    <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 bg-emerald-400"
+                    <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 ${member.online ? "bg-emerald-400" : "bg-slate-300"}`}
                       style={{ borderColor: isSelected ? "var(--surface-low)" : "var(--surface-lowest)" }} />
                   </div>
 
@@ -466,12 +502,14 @@ export default function MessagesPage() {
                       {getInitials(selectedMember.name)}
                     </div>
                   )}
-                  <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 bg-emerald-400"
+                  <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 ${selectedMember.online ? "bg-emerald-400" : "bg-slate-300"}`}
                     style={{ borderColor: "var(--surface-low)" }} />
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-[#1a1c1c]">{selectedMember.name}</p>
-                  <p className="text-xs text-[#48484a] capitalize">{selectedMember.role} · Online</p>
+                  <p className={`text-xs capitalize ${selectedMember.online ? "text-emerald-600" : "text-[#48484a]"}`}>
+                    {selectedMember.role} · {selectedMember.online ? "Online" : "Offline"}
+                  </p>
                 </div>
               </>
             ) : (
@@ -534,6 +572,19 @@ export default function MessagesPage() {
                     </div>
                   );
                 })}
+                {typingNames.length > 0 && (
+                  <div className="flex items-center gap-2 mt-1 ml-8">
+                    <div className="px-3 py-2 rounded-2xl rounded-bl-sm flex items-center gap-2"
+                      style={{ background: "var(--surface-low)" }}>
+                      <span className="flex gap-0.5 items-end">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#48484a] animate-bounce" style={{ animationDelay: "0ms" }} />
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#48484a] animate-bounce" style={{ animationDelay: "150ms" }} />
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#48484a] animate-bounce" style={{ animationDelay: "300ms" }} />
+                      </span>
+                      <span className="text-xs text-[#48484a]">{typingNames.join(", ")} {typingNames.length === 1 ? "is" : "are"} typing…</span>
+                    </div>
+                  </div>
+                )}
                 <div ref={messagesEnd} />
               </>
             )}
@@ -594,12 +645,14 @@ export default function MessagesPage() {
                             {getInitials(m.name)}
                           </div>
                         )}
-                        <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border bg-emerald-400"
+                        <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border ${m.online ? "bg-emerald-400" : "bg-slate-300"}`}
                           style={{ borderColor: "var(--surface-lowest)" }} />
                       </div>
                       <span className="text-sm font-medium text-[#1a1c1c]">{m.name}</span>
                       <span className="text-xs text-[#48484a] capitalize">{m.role}</span>
-                      <span className="ml-auto text-xs text-emerald-500">Online</span>
+                      <span className={`ml-auto text-xs ${m.online ? "text-emerald-500" : "text-[#48484a]"}`}>
+                        {m.online ? "Online" : "Offline"}
+                      </span>
                     </button>
                   ))}
                 </div>

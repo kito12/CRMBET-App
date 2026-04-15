@@ -11,8 +11,6 @@ import type {
   Customer, Ticket, AppNotification, CannedResponse, EscalationSettings, AuditEntry,
 } from "@/lib/data";
 
-const CURRENT_AGENT = "Sarah K.";
-
 interface DataContextType {
   tickets: Ticket[];
   setTickets: React.Dispatch<React.SetStateAction<Ticket[]>>;

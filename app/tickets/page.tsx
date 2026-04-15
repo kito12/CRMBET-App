@@ -16,7 +16,6 @@ import KanbanBoard from "@/components/tickets/KanbanBoard";
 import { SkeletonTableRow } from "@/components/ui/Skeleton";
 
 const statusFilters = ["All", "Open", "In Progress", "Resolved", "On Hold"] as const;
-const CURRENT_AGENT = "Sarah K.";
 const agentViews = ["All", "Mine", "Unassigned"] as const;
 type AgentView = typeof agentViews[number];
 type DateRange = "all" | "today" | "yesterday" | "7d" | "30d";
@@ -156,7 +155,7 @@ export default function TicketsPage() {
     const matchesStatus = activeFilter === "All" || t.status === activeFilter;
     const matchesAgentView =
       agentView === "All" ? true :
-      agentView === "Mine" ? t.agent === CURRENT_AGENT :
+      agentView === "Mine" ? t.agent === currentUser?.name :
       t.agent === "Unassigned";
     const matchesAgentFilter = agentFilter === "all" || t.agent === agentFilter;
     const matchesDate = (() => {
