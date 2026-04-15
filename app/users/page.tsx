@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Search, Users, Clock, Plus, X, Mail, Shield, UserCircle, Trash2, ChevronDown } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Search, Users, Clock, Plus, X, Mail, Shield, UserCircle, Trash2, ChevronDown, TrendingUp, CheckCircle2, Target, AlertCircle } from "lucide-react";
 import { collection, onSnapshot, addDoc, deleteDoc, doc, query, orderBy, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/components/AuthProvider";
+import { useData } from "@/components/DataProvider";
 
 type FirestoreUser = {
   uid:       string;
@@ -40,18 +41,35 @@ function getGradient(email: string) {
   return gradientPool[Math.abs(hash) % gradientPool.length];
 }
 
+function formatDuration(ms: number): string {
+  const mins = Math.floor(ms / 60000);
+  if (mins < 60)  return `${mins}m`;
+  const hrs = mins / 60;
+  if (hrs < 24)   return `${hrs.toFixed(1)}h`;
+  return `${(hrs / 24).toFixed(1)}d`;
+}
+
 export default function UsersPage() {
   const { user: currentUser } = useAuth();
+  const { tickets } = useData();
   const isAdmin = currentUser?.role === "admin";
 
-  const [users,       setUsers]       = useState<FirestoreUser[]>([]);
-  const [invites,     setInvites]     = useState<Invite[]>([]);
-  const [search,      setSearch]      = useState("");
-  const [inviteOpen,  setInviteOpen]  = useState(false);
+  const [users,        setUsers]        = useState<FirestoreUser[]>([]);
+  const [invites,      setInvites]      = useState<Invite[]>([]);
+  const [search,       setSearch]       = useState("");
+  const [inviteOpen,   setInviteOpen]   = useState(false);
   const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteError, setInviteError] = useState("");
-  const [inviting,    setInviting]    = useState(false);
+  const [inviteEmail,  setInviteEmail]  = useState("");
+  const [inviteError,  setInviteError]  = useState("");
+  const [inviting,     setInviting]     = useState(false);
+  const [perfView,     setPerfView]     = useState(false);
+
+  // Weekly targets — admin-configurable, stored in localStorage
+  const [targets, setTargets] = useState<Record<string, number>>(() => {
+    try { return JSON.parse(localStorage.getItem("agentTargets") ?? "{}"); } catch { return {}; }
+  });
+  const [editingTarget, setEditingTarget] = useState<string | null>(null);
+  const [targetInput,   setTargetInput]   = useState("");
 
   // Live users from Firestore
   useEffect(() => {
@@ -116,6 +134,57 @@ export default function UsersPage() {
     }
   }
 
+  function saveTarget(name: string, val: string) {
+    const n = parseInt(val);
+    if (!isNaN(n) && n > 0) {
+      const next = { ...targets, [name]: n };
+      setTargets(next);
+      try { localStorage.setItem("agentTargets", JSON.stringify(next)); } catch { /* ignore */ }
+    }
+    setEditingTarget(null);
+  }
+
+  // Performance stats per agent — computed from live tickets
+  const agentPerf = useMemo(() => {
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    return users.map(agent => {
+      const mine     = tickets.filter(t => t.agent === agent.name);
+      const resolved = mine.filter(t => t.status === "Resolved");
+
+      const resolvedThisWeek = resolved.filter(t => {
+        const d = t.resolvedAt ? new Date(t.resolvedAt) : null;
+        return d && d >= startOfWeek;
+      }).length;
+
+      const open = mine.filter(t => t.status === "Open" || t.status === "In Progress").length;
+
+      const times = resolved
+        .filter(t => t.resolvedAt && t.createdAt)
+        .map(t => new Date(t.resolvedAt!).getTime() - new Date(t.createdAt!).getTime())
+        .filter(ms => ms > 0);
+      const avgMs = times.length ? times.reduce((a, b) => a + b, 0) / times.length : null;
+
+      // SLA compliance: resolved within target time
+      const slaResolved = resolved.filter(t => {
+        if (!t.resolvedAt || !t.createdAt) return false;
+        const elapsed = new Date(t.resolvedAt).getTime() - new Date(t.createdAt).getTime();
+        // Use a simple 24h window for compliance check
+        return elapsed <= 24 * 60 * 60 * 1000;
+      }).length;
+      const slaRate = resolved.length ? Math.round((slaResolved / resolved.length) * 100) : null;
+
+      const target = targets[agent.name] ?? 20;
+      const progress = Math.min(100, Math.round((resolvedThisWeek / target) * 100));
+
+      return { uid: agent.uid, name: agent.name, photo: agent.photo, email: agent.email,
+               resolvedThisWeek, open, avgMs, slaRate, target, progress, totalResolved: resolved.length };
+    });
+  }, [users, tickets, targets]);
+
   const filtered = users.filter(u =>
     u.name.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase())
@@ -132,12 +201,24 @@ export default function UsersPage() {
           <h1 className="text-display text-[#1a1c1c]">Support Team</h1>
           <p className="text-sm text-[#48484a] mt-1">Manage agents and access</p>
         </div>
-        {isAdmin && (
-          <button onClick={() => setInviteOpen(true)}
-            className="gradient-primary text-white text-sm font-medium px-4 py-2.5 rounded-xl flex items-center gap-2 hover:opacity-90 transition-opacity shadow-ambient">
-            <Plus size={15} /> Add Agent
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setPerfView(v => !v)}
+            className={`text-sm font-medium px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all ${
+              perfView
+                ? "gradient-primary text-white shadow-ambient"
+                : "border text-[#48484a] hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200"
+            }`}
+            style={perfView ? {} : { background: "var(--surface-lowest)", borderColor: "rgba(204,195,215,0.5)" }}>
+            <TrendingUp size={15} /> Performance
           </button>
-        )}
+          {isAdmin && (
+            <button onClick={() => setInviteOpen(true)}
+              className="gradient-primary text-white text-sm font-medium px-4 py-2.5 rounded-xl flex items-center gap-2 hover:opacity-90 transition-opacity shadow-ambient">
+              <Plus size={15} /> Add Agent
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Stats */}
@@ -221,6 +302,175 @@ export default function UsersPage() {
           </div>
         )}
       </div>
+
+      {/* ── Performance View ───────────────────────────────────────────────── */}
+      {perfView && (
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <TrendingUp size={16} className="text-purple-600" />
+              <h2 className="text-base font-semibold" style={{ color: "var(--on-surface)" }}>
+                Agent Performance
+              </h2>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 font-medium">
+                This week
+              </span>
+            </div>
+            {isAdmin && (
+              <p className="text-xs" style={{ color: "var(--on-surface-variant)" }}>
+                Click a target to edit
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-3">
+            {agentPerf.map(ap => {
+              const isEditingThis = editingTarget === ap.uid;
+              const progressColor =
+                ap.progress >= 100 ? "bg-emerald-500" :
+                ap.progress >= 60  ? "bg-purple-500"  :
+                ap.progress >= 30  ? "bg-amber-500"   : "bg-red-400";
+
+              return (
+                <div key={ap.uid}
+                  className="rounded-2xl px-6 py-4 transition-all"
+                  style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
+
+                  <div className="flex items-center gap-4">
+                    {/* Avatar */}
+                    <div className="shrink-0">
+                      {ap.photo ? (
+                        <img src={ap.photo} alt={ap.name} className="w-10 h-10 rounded-xl object-cover" />
+                      ) : (
+                        <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${getGradient(ap.email)} flex items-center justify-center text-white text-xs font-semibold`}>
+                          {ap.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Name */}
+                    <div className="w-36 shrink-0">
+                      <p className="text-sm font-semibold truncate" style={{ color: "var(--on-surface)" }}>{ap.name}</p>
+                      <p className="text-xs truncate" style={{ color: "var(--on-surface-variant)" }}>{ap.email}</p>
+                    </div>
+
+                    {/* Progress bar + target */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium" style={{ color: "var(--on-surface-variant)" }}>
+                          Weekly target
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold" style={{ color: "var(--on-surface)" }}>
+                            {ap.resolvedThisWeek}
+                          </span>
+                          <span className="text-xs" style={{ color: "var(--on-surface-variant)" }}>/</span>
+                          {/* Inline target editor (admin only) */}
+                          {isAdmin ? (
+                            isEditingThis ? (
+                              <input
+                                autoFocus
+                                type="number"
+                                min={1}
+                                value={targetInput}
+                                onChange={e => setTargetInput(e.target.value)}
+                                onBlur={() => saveTarget(ap.name, targetInput)}
+                                onKeyDown={e => {
+                                  if (e.key === "Enter") saveTarget(ap.name, targetInput);
+                                  if (e.key === "Escape") setEditingTarget(null);
+                                }}
+                                className="w-12 text-center text-xs font-semibold rounded-md px-1 py-0.5 outline-none focus:ring-2 focus:ring-purple-300"
+                                style={{ background: "var(--surface-low)", color: "var(--on-surface)" }}
+                              />
+                            ) : (
+                              <button
+                                onClick={() => { setEditingTarget(ap.uid); setTargetInput(String(ap.target)); }}
+                                className="text-xs font-semibold text-purple-600 hover:text-purple-800 hover:underline transition-colors flex items-center gap-0.5"
+                                title="Click to edit target">
+                                {ap.target}
+                                <Target size={9} className="opacity-60" />
+                              </button>
+                            )
+                          ) : (
+                            <span className="text-xs font-semibold" style={{ color: "var(--on-surface)" }}>{ap.target}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="w-full rounded-full h-2" style={{ background: "var(--surface-low)" }}>
+                        <div
+                          className={`h-2 rounded-full transition-all duration-500 ${progressColor}`}
+                          style={{ width: `${ap.progress}%` }}
+                        />
+                      </div>
+                      <p className="text-[10px] mt-0.5" style={{ color: "var(--on-surface-variant)" }}>
+                        {ap.progress}% of weekly target
+                      </p>
+                    </div>
+
+                    {/* Stats chips */}
+                    <div className="hidden sm:flex items-center gap-3 shrink-0">
+                      {/* Open tickets */}
+                      <div className="text-center min-w-[52px]">
+                        <p className={`text-base font-bold ${ap.open > 0 ? "text-amber-500" : "text-emerald-500"}`}>
+                          {ap.open}
+                        </p>
+                        <p className="text-[10px]" style={{ color: "var(--on-surface-variant)" }}>Open</p>
+                      </div>
+
+                      {/* Total resolved */}
+                      <div className="text-center min-w-[52px]">
+                        <p className="text-base font-bold text-purple-600">{ap.totalResolved}</p>
+                        <p className="text-[10px]" style={{ color: "var(--on-surface-variant)" }}>All-time</p>
+                      </div>
+
+                      {/* Avg resolution time */}
+                      <div className="text-center min-w-[52px]">
+                        <p className="text-base font-bold" style={{ color: "var(--on-surface)" }}>
+                          {ap.avgMs !== null ? formatDuration(ap.avgMs) : "--"}
+                        </p>
+                        <p className="text-[10px]" style={{ color: "var(--on-surface-variant)" }}>Avg time</p>
+                      </div>
+
+                      {/* SLA rate */}
+                      <div className="text-center min-w-[52px]">
+                        {ap.slaRate !== null ? (
+                          <div className="flex flex-col items-center">
+                            <p className={`text-base font-bold ${ap.slaRate >= 80 ? "text-emerald-500" : ap.slaRate >= 60 ? "text-amber-500" : "text-red-500"}`}>
+                              {ap.slaRate}%
+                            </p>
+                            <p className="text-[10px]" style={{ color: "var(--on-surface-variant)" }}>SLA</p>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center">
+                            <p className="text-base font-bold text-[#9ca3af]">--</p>
+                            <p className="text-[10px]" style={{ color: "var(--on-surface-variant)" }}>SLA</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Badge if target hit */}
+                      <div className="w-8 flex items-center justify-center">
+                        {ap.progress >= 100 && (
+                          <span title="Weekly target achieved!"><CheckCircle2 size={18} className="text-emerald-500" /></span>
+                        )}
+                        {ap.open >= 10 && ap.progress < 30 && (
+                          <span title="High open count, low progress"><AlertCircle size={18} className="text-red-400" /></span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {agentPerf.length === 0 && (
+              <div className="py-12 text-center text-sm rounded-2xl" style={{ background: "var(--surface-lowest)", color: "var(--on-surface-variant)" }}>
+                No agents to display.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Pending invites — admin only */}
       {isAdmin && invites.length > 0 && (

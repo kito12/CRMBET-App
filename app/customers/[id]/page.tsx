@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import type { Ticket, TicketPriority, TicketStatus, CustomerStatus, AccountType } from "@/lib/data";
 import { useData } from "@/components/DataProvider";
@@ -10,6 +10,8 @@ import TicketDetailModal from "@/components/tickets/TicketDetailModal";
 import Modal from "@/components/ui/Modal";
 import { InputField, SelectField, TextareaField } from "@/components/ui/FormField";
 import CopyButton from "@/components/ui/CopyButton";
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 const accountTypePill: Record<string, string> = {
   VIP:      "bg-purple-50 text-purple-700",
@@ -45,9 +47,16 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
     accountType: customer?.accountType ?? "Standard" as AccountType,
   });
 
-  if (!customer) return null;
+  // Live agents from Firestore
+  const [agents, setAgents] = useState<string[]>(["Unassigned"]);
+  useEffect(() => {
+    return onSnapshot(collection(db, "users"), snap => {
+      const names = snap.docs.map(d => d.data().name as string).filter(Boolean).sort();
+      setAgents(["Unassigned", ...names]);
+    });
+  }, []);
 
-  const agents = ["Unassigned", "Sarah K.", "James R.", "Tom H.", "Mia S.", "Daniel P.", "Omar K.", "Yuki T."];
+  if (!customer) return null;
 
   function changeStatus(s: CustomerStatus) {
     setCustomerStatus(s);
@@ -79,9 +88,13 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
     setTicketForm({ issue: "Withdrawal Issue", priority: "Medium", agent: "Unassigned", description: "" });
   }
 
-  const clientTickets = tickets
+  const clientTickets = useMemo(() => tickets
     .filter(t => t.clientId === customer.clientId)
-    .sort((a, b) => b.id.localeCompare(a.id));
+    .sort((a, b) => {
+      const aT = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bT = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bT - aT;
+    }), [tickets, customer.clientId]);
 
   const openCount     = clientTickets.filter(t => t.status === "Open" || t.status === "In Progress").length;
   const resolvedCount = clientTickets.filter(t => t.status === "Resolved").length;

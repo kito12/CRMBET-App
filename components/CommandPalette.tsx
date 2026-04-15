@@ -75,7 +75,8 @@ export default function CommandPalette({ open, onClose }: Props) {
         t.id.toLowerCase().includes(q) ||
         t.customer.toLowerCase().includes(q) ||
         t.issue.toLowerCase().includes(q) ||
-        t.clientId.toLowerCase().includes(q)
+        t.clientId.toLowerCase().includes(q) ||
+        (t.description ?? "").toLowerCase().includes(q)
       ).slice(0, 5)
     : tickets.slice(0, 3);
 
