@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Zap } from "lucide-react";
 import Sidebar from "./Sidebar";
 import { useAuth } from "./AuthProvider";
+import PwaInstallBanner from "./PwaInstallBanner";
 
 // Routes that don't require authentication
 const PUBLIC_PATHS = ["/login", "/submit"];
@@ -49,6 +50,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <main key={pathname} className="page-enter md:ml-16 min-h-screen p-4 md:p-8 pb-24 md:pb-8">
         {children}
       </main>
+      <PwaInstallBanner />
     </>
   );
 }
