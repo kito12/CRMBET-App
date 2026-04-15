@@ -7,8 +7,8 @@ import DataProvider from "@/components/DataProvider";
 import AuthProvider from "@/components/AuthProvider";
 
 export const metadata: Metadata = {
-  title: "PremierBet — Customer Support",
-  description: "Customer relationship management for PremierBet support teams",
+  title: "DeskHive — Customer Support",
+  description: "Customer relationship management for DeskHive support teams",
 };
 
 export default function RootLayout({

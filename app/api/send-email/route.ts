@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const FROM = process.env.EMAIL_FROM ?? "PremierBet Support <onboarding@resend.dev>";
+const FROM = process.env.EMAIL_FROM ?? "DeskHive Support <onboarding@resend.dev>";
 
 // ── HTML email templates ──────────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ function baseHtml(content: string) {
         <tr>
           <td style="background:linear-gradient(135deg,#7131d6,#0058bf);padding:24px 32px">
             <h1 style="margin:0;font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.3px">
-              ⚡ PremierBet Support
+              ⚡ DeskHive Support
             </h1>
           </td>
         </tr>
@@ -30,7 +30,7 @@ function baseHtml(content: string) {
             ${content}
             <p style="margin:28px 0 0;padding-top:20px;border-top:1px solid #e5e7eb;
                font-size:11px;color:#9ca3af;line-height:1.5">
-              This message was sent by PremierBet Support. Please quote your reference number
+              This message was sent by DeskHive Support. Please quote your reference number
               in any further correspondence.
             </p>
           </td>
@@ -49,7 +49,7 @@ function ticketSubmittedHtml(name: string, ticketId: string, issueType: string) 
       We've received your request
     </h2>
     <p style="margin:0 0 20px;font-size:14px;color:#48484a;line-height:1.7">
-      Thank you for contacting PremierBet Support. A member of our team will review your
+      Thank you for contacting DeskHive Support. A member of our team will review your
       case and get back to you as soon as possible.
     </p>
     <div style="background:#f8f7ff;border-radius:12px;padding:18px 22px;margin-bottom:22px">
@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
         html = ticketResolvedHtml(customerName, ticketId);
         break;
       case "agent_reply":
-        subject = `Message from PremierBet Support [${ticketId}]`;
+        subject = `Message from DeskHive Support [${ticketId}]`;
         html = agentReplyHtml(customerName, ticketId, agentMessage ?? "");
         break;
       default:

@@ -50,7 +50,7 @@ export default function SettingsPage() {
     newTickets: true, assignedToMe: true, statusChanges: false, dailyDigest: true,
   });
   const [crm, setCrm] = useState({
-    name: "PremierBet", slaTarget: "10", headOfficeName: "Head Office CRM", defaultAgent: "Unassigned",
+    name: "DeskHive", slaTarget: "10", headOfficeName: "Head Office CRM", defaultAgent: "Unassigned",
   });
 
   /* ── Live agents from Firestore ── */
@@ -909,7 +909,7 @@ export default function SettingsPage() {
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center"><CrmBetLogo size={16} className="text-white" /></div>
           <div>
-            <p className="text-sm font-semibold text-[#1a1c1c]">PremierBet v1.0</p>
+            <p className="text-sm font-semibold text-[#1a1c1c]">DeskHive v1.0</p>
             <p className="text-xs text-[#48484a]">Customer support platform for betting operations</p>
           </div>
         </div>
