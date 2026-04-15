@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useMemo } from "react";
 import { useData } from "@/components/DataProvider";
 import { Ticket, CheckCircle2, AlertCircle, TrendingUp, Users, Clock, CalendarDays, Download } from "lucide-react";
 import type { Ticket as TicketType } from "@/lib/data";
@@ -136,78 +136,99 @@ export default function AnalyticsPage() {
   const { tickets, customers, slaPolicy } = useData();
   const reportRef = useRef<HTMLDivElement>(null);
 
-  const total      = tickets.length;
-  const open       = tickets.filter(t => t.status === "Open").length;
-  const inProgress = tickets.filter(t => t.status === "In Progress").length;
-  const resolved   = tickets.filter(t => t.status === "Resolved").length;
-  const onHold     = tickets.filter(t => t.status === "On Hold").length;
-  const active     = open + inProgress;
-  const resRate    = pct(resolved, total);
-  const escalated  = tickets.filter(t => t.escalated).length;
+  const stats = useMemo(() => {
+    const total      = tickets.length;
+    const open       = tickets.filter(t => t.status === "Open").length;
+    const inProgress = tickets.filter(t => t.status === "In Progress").length;
+    const resolved   = tickets.filter(t => t.status === "Resolved").length;
+    const onHold     = tickets.filter(t => t.status === "On Hold").length;
+    const active     = open + inProgress;
+    const resRate    = pct(resolved, total);
+    const escalated  = tickets.filter(t => t.escalated).length;
 
-  // ── Last 7 days volume ──
-  const today = new Date();
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(today);
-    d.setDate(today.getDate() - (6 - i));
-    const DAY_LABELS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-    const count = tickets.filter(t => {
-      const td = parseCreatedToDate(t.created);
-      return td ? isSameDay(td, d) : false;
-    }).length;
-    return { label: i === 6 ? "Today" : DAY_LABELS[d.getDay()], count, isToday: i === 6 };
-  });
-  const thisWeekCount = weekDays.reduce((s, d) => s + d.count, 0);
+    // ── Last 7 days volume ──
+    const today = new Date();
+    const weekDays = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() - (6 - i));
+      const DAY_LABELS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+      const count = tickets.filter(t => {
+        const td = parseCreatedToDate(t.created);
+        return td ? isSameDay(td, d) : false;
+      }).length;
+      return { label: i === 6 ? "Today" : DAY_LABELS[d.getDay()], count, isToday: i === 6 };
+    });
+    const thisWeekCount = weekDays.reduce((s, d) => s + d.count, 0);
 
-  // ── Issue type breakdown ──
-  const issueTypes = ["Withdrawal Issue", "Restricted Withdrawals", "Deposits", "Blocked Accounts", "Bet Settlement", "Account Access", "Bonus Dispute", "Live Betting", "Other"];
-  const issueCounts = issueTypes.map(i => ({ label: i, count: tickets.filter(t => t.issue === i).length }))
-    .sort((a, b) => b.count - a.count);
-  const maxIssue = Math.max(...issueCounts.map(x => x.count), 1);
+    // ── Issue type breakdown ──
+    const issueTypes = ["Withdrawal Issue", "Restricted Withdrawals", "Deposits", "Blocked Accounts", "Bet Settlement", "Account Access", "Bonus Dispute", "Live Betting", "Other"];
+    const issueCounts = issueTypes.map(i => ({ label: i, count: tickets.filter(t => t.issue === i).length }))
+      .sort((a, b) => b.count - a.count);
+    const maxIssue = Math.max(...issueCounts.map(x => x.count), 1);
 
-  // ── Priority breakdown ──
-  const prioritySlices = [
-    { label: "High",   value: tickets.filter(t => t.priority === "High").length,   color: "#ef4444" },
-    { label: "Medium", value: tickets.filter(t => t.priority === "Medium").length, color: "#f59e0b" },
-    { label: "Low",    value: tickets.filter(t => t.priority === "Low").length,    color: "#22c55e" },
-  ];
+    // ── Priority breakdown ──
+    const prioritySlices = [
+      { label: "High",   value: tickets.filter(t => t.priority === "High").length,   color: "#ef4444" },
+      { label: "Medium", value: tickets.filter(t => t.priority === "Medium").length, color: "#f59e0b" },
+      { label: "Low",    value: tickets.filter(t => t.priority === "Low").length,    color: "#22c55e" },
+    ];
 
-  // ── Status breakdown ──
-  const statusSlices = [
-    { label: "Open",        value: open,       color: "#7131d6" },
-    { label: "In Progress", value: inProgress, color: "#0058bf" },
-    { label: "Resolved",    value: resolved,   color: "#22c55e" },
-    { label: "On Hold",     value: onHold,     color: "#f59e0b" },
-  ].filter(s => s.value > 0);
+    // ── Status breakdown ──
+    const statusSlices = [
+      { label: "Open",        value: open,       color: "#7131d6" },
+      { label: "In Progress", value: inProgress, color: "#0058bf" },
+      { label: "Resolved",    value: resolved,   color: "#22c55e" },
+      { label: "On Hold",     value: onHold,     color: "#f59e0b" },
+    ].filter(s => s.value > 0);
 
-  // ── Agent leaderboard ──
-  const agentNames = Array.from(new Set(tickets.map(t => t.agent))).filter(a => a !== "Unassigned");
-  const agentStats = agentNames.map(agent => {
-    const agentTickets    = tickets.filter(t => t.agent === agent);
-    const resolvedTickets = agentTickets.filter(t => t.status === "Resolved");
-    const avgMs           = avgResolutionMs(resolvedTickets);
+    // ── Agent leaderboard ──
+    const agentNames = Array.from(new Set(tickets.map(t => t.agent))).filter(a => a !== "Unassigned");
+    const agentStats = agentNames.map(agent => {
+      const agentTickets    = tickets.filter(t => t.agent === agent);
+      const resolvedTickets = agentTickets.filter(t => t.status === "Resolved");
+      const avgMs           = avgResolutionMs(resolvedTickets);
+      return {
+        name:     agent,
+        total:    agentTickets.length,
+        resolved: resolvedTickets.length,
+        open:     agentTickets.filter(t => t.status === "Open" || t.status === "In Progress").length,
+        avgMs,
+      };
+    }).sort((a, b) => b.total - a.total);
+    const maxAgent = Math.max(...agentStats.map(a => a.total), 1);
+
+    // ── Customer tier breakdown ──
+    const tierColors: Record<string, string> = { VIP: "bg-purple-500", Premium: "bg-blue-500", Standard: "bg-slate-400" };
+    const tierStats = (["VIP", "Premium", "Standard"] as const).map(tier => ({
+      label: tier,
+      customers: customers.filter(c => c.accountType === tier).length,
+      tickets:   tickets.filter(t => {
+        const c = customers.find(cu => cu.clientId === t.clientId);
+        return c?.accountType === tier;
+      }).length,
+      color: tierColors[tier],
+    }));
+    const maxTierTickets = Math.max(...tierStats.map(t => t.tickets), 1);
+
     return {
-      name:     agent,
-      total:    agentTickets.length,
-      resolved: resolvedTickets.length,
-      open:     agentTickets.filter(t => t.status === "Open" || t.status === "In Progress").length,
-      avgMs,
+      total, open, inProgress, resolved, onHold, active, resRate, escalated,
+      weekDays, thisWeekCount,
+      issueCounts, maxIssue,
+      prioritySlices, statusSlices,
+      agentStats, maxAgent,
+      tierStats, maxTierTickets,
     };
-  }).sort((a, b) => b.total - a.total);
-  const maxAgent = Math.max(...agentStats.map(a => a.total), 1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tickets, customers]);
 
-  // ── Customer tier breakdown ──
-  const tierColors: Record<string, string> = { VIP: "bg-purple-500", Premium: "bg-blue-500", Standard: "bg-slate-400" };
-  const tierStats = (["VIP", "Premium", "Standard"] as const).map(tier => ({
-    label: tier,
-    customers: customers.filter(c => c.accountType === tier).length,
-    tickets:   tickets.filter(t => {
-      const c = customers.find(cu => cu.clientId === t.clientId);
-      return c?.accountType === tier;
-    }).length,
-    color: tierColors[tier],
-  }));
-  const maxTierTickets = Math.max(...tierStats.map(t => t.tickets), 1);
+  const {
+    total, open, inProgress, resolved, onHold, active, resRate, escalated,
+    weekDays, thisWeekCount,
+    issueCounts, maxIssue,
+    prioritySlices, statusSlices,
+    agentStats, maxAgent,
+    tierStats, maxTierTickets,
+  } = stats;
 
   function handleExport() {
     window.print();
