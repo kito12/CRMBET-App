@@ -51,6 +51,7 @@ export interface Ticket {
   escalated?: boolean;
   escalatedAt?: string;
   escalatedTo?: string;
+  resolvedAt?: string;    // ISO 8601 — set when status first changes to Resolved
   source?: "web_form" | "agent";
   auditLog?: AuditEntry[];
 }

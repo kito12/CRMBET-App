@@ -222,3 +222,60 @@ body {
     text-transform: uppercase;
   }
 }
+
+/* ─── Print / PDF export ──────────────────────────────────────────────────────── */
+@media print {
+  /* Kill the sidebar and reset the main content margin */
+  aside,
+  nav.md\:hidden  { display: none !important; }
+  main            { margin-left: 0 !important; padding: 24px !important; padding-bottom: 24px !important; }
+
+  /* Hide interactive / non-report elements */
+  .no-print       { display: none !important; }
+
+  /* Force a white page background and dark text */
+  *,
+  *::before,
+  *::after        { transition: none !important; animation: none !important; }
+
+  :root {
+    --surface:         #ffffff;
+    --surface-low:     #f4f4f5;
+    --surface-lowest:  #ffffff;
+    --on-surface:      #09090b;
+    --on-surface-variant: #52525b;
+    --primary:         #7131d6;
+  }
+
+  body            { background: #ffffff !important; color: #09090b !important; }
+
+  /* Each card should avoid breaking across pages */
+  [style*="box-shadow"] {
+    box-shadow: none !important;
+    border: 1px solid #e4e4e7 !important;
+    break-inside: avoid;
+  }
+
+  /* Keep the gradient on key elements so the PDF looks branded */
+  .gradient-primary { background: linear-gradient(135deg, #7131d6 0%, #8b50f1 100%) !important; }
+
+  /* Add a print-only report header */
+  main::before {
+    content: "BetCRM · Support Analytics Report";
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #7131d6;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #7131d6;
+  }
+
+  /* Page setup */
+  @page {
+    size: A4 landscape;
+    margin: 16mm;
+  }
+}

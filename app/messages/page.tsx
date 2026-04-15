@@ -345,10 +345,19 @@ export default function MessagesPage() {
   // ── Derived data ───────────────────────────────────────────────────────────
   const selectedMember = members.find(m => m.uid === selectedId) ?? null;
 
-  const sortedMembers = [...members].filter(m =>
-    m.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
-    m.email.toLowerCase().includes(memberSearch.toLowerCase())
-  );
+  const sortedMembers = [...members]
+    .filter(m =>
+      m.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+      m.email.toLowerCase().includes(memberSearch.toLowerCase())
+    )
+    .sort((a, b) => {
+      const tsA = convMeta[a.uid]?.updatedAt ?? "";
+      const tsB = convMeta[b.uid]?.updatedAt ?? "";
+      if (tsA && tsB) return tsB.localeCompare(tsA); // both have messages → most recent first
+      if (tsA) return -1;                             // only A has a message → A comes first
+      if (tsB) return 1;                              // only B has a message → B comes first
+      return a.name.localeCompare(b.name);            // neither has messages → alphabetical
+    });
 
   const filteredTickets = tickets.filter(t =>
     t.id.toLowerCase().includes(triggerQuery.toLowerCase()) ||

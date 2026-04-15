@@ -7,7 +7,7 @@ import type { Ticket, TicketPriority, TicketStatus, AuditEntry } from "@/lib/dat
 import { useData } from "@/components/DataProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { StatusPill, PriorityPill } from "@/components/ui/StatusPill";
-import { Search, Plus, Link2, Download, ChevronLeft, ChevronRight, CheckCircle2, LayoutList, Columns, SlidersHorizontal, X } from "lucide-react";
+import { Search, Plus, Link2, Download, ChevronLeft, ChevronRight, CheckCircle2, LayoutList, Columns, SlidersHorizontal, X, Bookmark, Trash2, UserCheck2, RefreshCw } from "lucide-react";
 import CopyButton from "@/components/ui/CopyButton";
 import Modal from "@/components/ui/Modal";
 import { InputField, SelectField, TextareaField } from "@/components/ui/FormField";
@@ -20,6 +20,15 @@ const agentViews = ["All", "Mine", "Unassigned"] as const;
 type AgentView = typeof agentViews[number];
 type DateRange = "all" | "today" | "yesterday" | "7d" | "30d";
 const ITEMS_PER_PAGE = 10;
+
+interface FilterPreset {
+  id: string;
+  name: string;
+  status: string;
+  agentView: AgentView;
+  dateRange: DateRange;
+  agentFilter: string;
+}
 
 function parseTicketDate(ticket: Ticket): Date | null {
   try {
@@ -103,6 +112,16 @@ export default function TicketsPage() {
   const [dateRange, setDateRange]     = useState<DateRange>("all");
   const [agentFilter, setAgentFilter] = useState<string>("all");
 
+  // Saved filter presets
+  const [presets, setPresets]           = useState<FilterPreset[]>([]);
+  const [savePresetOpen, setSavePresetOpen] = useState(false);
+  const [presetName, setPresetName]     = useState("");
+
+  // Bulk selection
+  const [selectedIds, setSelectedIds]   = useState<Set<string>>(new Set());
+  const [bulkStatus, setBulkStatus]     = useState<string>("");
+  const [bulkAgent, setBulkAgent]       = useState<string>("");
+
   // Handle URL params: ?open=TKT-XXXX, ?new=1, ?clientId=CLT-XXXX
   useEffect(() => {
     const params   = new URLSearchParams(window.location.search);
@@ -171,9 +190,83 @@ export default function TicketsPage() {
   const extraFilterCount = (dateRange !== "all" ? 1 : 0) + (agentFilter !== "all" ? 1 : 0);
   function clearExtraFilters() { setDateRange("all"); setAgentFilter("all"); }
 
+  // Load presets from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("ticketPresets");
+      if (stored) setPresets(JSON.parse(stored));
+    } catch { /* ignore */ }
+  }, []);
+
+  function savePreset() {
+    if (!presetName.trim()) return;
+    const newPreset: FilterPreset = {
+      id: Date.now().toString(),
+      name: presetName.trim(),
+      status: activeFilter,
+      agentView,
+      dateRange,
+      agentFilter,
+    };
+    const updated = [...presets, newPreset];
+    setPresets(updated);
+    try { localStorage.setItem("ticketPresets", JSON.stringify(updated)); } catch { /* ignore */ }
+    setPresetName("");
+    setSavePresetOpen(false);
+  }
+
+  function applyPreset(p: FilterPreset) {
+    setActiveFilter(p.status);
+    setAgentView(p.agentView);
+    setDateRange(p.dateRange);
+    setAgentFilter(p.agentFilter);
+    setPage(1);
+  }
+
+  function deletePreset(id: string) {
+    const updated = presets.filter(p => p.id !== id);
+    setPresets(updated);
+    try { localStorage.setItem("ticketPresets", JSON.stringify(updated)); } catch { /* ignore */ }
+  }
+
+  // Bulk selection helpers
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === paginated.length && paginated.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(paginated.map(t => t.id)));
+    }
+  }
+
+  function applyBulkStatus() {
+    if (!bulkStatus) return;
+    setTickets(prev => prev.map(t => selectedIds.has(t.id) ? { ...t, status: bulkStatus as TicketStatus } : t));
+    setSelectedIds(new Set());
+    setBulkStatus("");
+  }
+
+  function applyBulkAgent() {
+    if (!bulkAgent) return;
+    setTickets(prev => prev.map(t => selectedIds.has(t.id) ? { ...t, agent: bulkAgent } : t));
+    setSelectedIds(new Set());
+    setBulkAgent("");
+  }
+
   function quickResolve(e: React.MouseEvent, ticketId: string) {
     e.stopPropagation();
-    setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: "Resolved" as TicketStatus } : t));
+    setTickets(prev => prev.map(t =>
+      t.id === ticketId && t.status !== "Resolved"
+        ? { ...t, status: "Resolved" as TicketStatus, resolvedAt: new Date().toISOString() }
+        : t
+    ));
   }
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
@@ -313,6 +406,7 @@ export default function TicketsPage() {
 
         {/* Row 3: collapsible extra filters */}
         {filtersOpen && (
+          <>
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 rounded-2xl" style={{ background: "var(--surface-low)" }}>
             {/* Date range */}
             <div className="flex flex-col gap-1.5 flex-1">
@@ -354,6 +448,56 @@ export default function TicketsPage() {
                 <X size={11} /> Clear filters
               </button>
             )}
+
+            {/* Save preset */}
+            <button onClick={() => setSavePresetOpen(v => !v)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#48484a] hover:bg-purple-50 hover:text-purple-600 transition-colors ml-auto"
+              style={{ background: "var(--surface-lowest)" }}>
+              <Bookmark size={11} /> Save preset
+            </button>
+          </div>
+          {savePresetOpen && (
+            <div className="flex items-center gap-2 px-1">
+              <input
+                autoFocus
+                type="text"
+                placeholder="Preset name…"
+                value={presetName}
+                onChange={e => setPresetName(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") savePreset(); if (e.key === "Escape") setSavePresetOpen(false); }}
+                className="flex-1 px-3 py-1.5 rounded-lg text-xs outline-none focus:ring-2 focus:ring-purple-200 transition-all"
+                style={{ background: "var(--surface-low)" }}
+              />
+              <button onClick={savePreset}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium gradient-primary text-white">
+                Save
+              </button>
+              <button onClick={() => setSavePresetOpen(false)}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-[#48484a] hover:bg-red-50 hover:text-red-500 transition-colors"
+                style={{ background: "var(--surface-low)" }}>
+                <X size={11} />
+              </button>
+            </div>
+          )}
+          </>
+        )}
+
+        {/* Preset chips */}
+        {presets.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold text-[#48484a] uppercase tracking-wide flex-shrink-0">Presets:</span>
+            {presets.map(p => (
+              <div key={p.id} className="flex items-center gap-1 rounded-full overflow-hidden" style={{ background: "var(--surface-low)" }}>
+                <button onClick={() => applyPreset(p)}
+                  className="flex items-center gap-1.5 pl-3 pr-2 py-1 text-xs font-medium text-[#1a1c1c] hover:text-purple-600 transition-colors">
+                  <Bookmark size={10} className="text-purple-500" /> {p.name}
+                </button>
+                <button onClick={() => deletePreset(p.id)}
+                  className="pr-2 py-1 text-[#48484a] hover:text-red-500 transition-colors">
+                  <X size={10} />
+                </button>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -409,7 +553,13 @@ export default function TicketsPage() {
 
       {/* Desktop Table — hidden in board mode */}
       <div className={`${viewMode === "board" ? "hidden" : "hidden md:block"} rounded-2xl overflow-hidden`} style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
-        <div className="grid grid-cols-[0.7fr_0.8fr_1.3fr_1.1fr_0.9fr_0.8fr_0.8fr_0.8fr_0.9fr_36px] gap-3 px-6 py-3" style={{ background: "var(--surface-low)" }}>
+        <div className="grid grid-cols-[28px_0.7fr_0.8fr_1.3fr_1.1fr_0.9fr_0.8fr_0.8fr_0.8fr_0.9fr_36px] gap-3 px-6 py-3" style={{ background: "var(--surface-low)" }}>
+          <div className="flex items-center justify-center">
+            <input type="checkbox"
+              checked={paginated.length > 0 && paginated.every(t => selectedIds.has(t.id))}
+              onChange={toggleSelectAll}
+              className="w-3.5 h-3.5 rounded accent-purple-600 cursor-pointer" />
+          </div>
           {["TICKET","CLIENT ID","CUSTOMER","PHONE","ISSUE TYPE","PRIORITY","STATUS","AGENT","CREATED",""].map(h => (
             <span key={h} className="text-label-caps text-[#48484a]">{h}</span>
           ))}
@@ -422,12 +572,16 @@ export default function TicketsPage() {
             <div className="py-16 text-center text-[#48484a] text-sm">No tickets match your search.</div>
           ) : paginated.map(ticket => (
             <div key={ticket.id}
-              className="group grid grid-cols-[0.7fr_0.8fr_1.3fr_1.1fr_0.9fr_0.8fr_0.8fr_0.8fr_0.9fr_36px] gap-3 items-center px-3 py-3.5 rounded-xl cursor-pointer transition-all duration-150"
-              style={{ background: "transparent" }}
+              className="group grid grid-cols-[28px_0.7fr_0.8fr_1.3fr_1.1fr_0.9fr_0.8fr_0.8fr_0.8fr_0.9fr_36px] gap-3 items-center px-3 py-3.5 rounded-xl cursor-pointer transition-all duration-150"
+              style={{ background: selectedIds.has(ticket.id) ? "rgba(113,49,214,0.06)" : "transparent" }}
               onClick={() => setSelectedTicket(ticket)}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-low)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              onMouseEnter={(e) => { if (!selectedIds.has(ticket.id)) e.currentTarget.style.background = "var(--surface-low)"; }}
+              onMouseLeave={(e) => { if (!selectedIds.has(ticket.id)) e.currentTarget.style.background = "transparent"; }}
             >
+              <div className="flex items-center justify-center" onClick={e => { e.stopPropagation(); toggleSelect(ticket.id); }}>
+                <input type="checkbox" checked={selectedIds.has(ticket.id)} onChange={() => toggleSelect(ticket.id)}
+                  className="w-3.5 h-3.5 rounded accent-purple-600 cursor-pointer" />
+              </div>
               <div className="flex items-center gap-1 min-w-0">
                 <span className="text-sm font-medium text-purple-600 truncate">{ticket.id}</span>
                 {ticket.headOfficeUrl && <Link2 size={11} className="text-[#48484a] flex-shrink-0" />}
@@ -507,6 +661,49 @@ export default function TicketsPage() {
           </div>
         </div>
       </div>
+
+      {/* Floating bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-24 md:bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl shadow-2xl"
+          style={{ background: "var(--on-surface)", color: "var(--surface-lowest)", minWidth: "320px" }}>
+          <span className="text-sm font-semibold flex-shrink-0">{selectedIds.size} selected</span>
+          <div className="w-px h-5 bg-white/20 flex-shrink-0" />
+          {/* Bulk status */}
+          <div className="flex items-center gap-1.5 flex-1">
+            <RefreshCw size={13} className="flex-shrink-0 opacity-60" />
+            <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value)}
+              className="flex-1 bg-white/10 rounded-lg px-2 py-1 text-xs font-medium outline-none cursor-pointer border border-white/20 focus:border-white/40"
+              style={{ color: "var(--surface-lowest)" }}>
+              <option value="">Set status…</option>
+              {(["Open","In Progress","On Hold","Resolved"] as TicketStatus[]).map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <button onClick={applyBulkStatus} disabled={!bulkStatus}
+              className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white/15 hover:bg-white/25 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+              Apply
+            </button>
+          </div>
+          <div className="w-px h-5 bg-white/20 flex-shrink-0" />
+          {/* Bulk reassign */}
+          <div className="flex items-center gap-1.5 flex-1">
+            <UserCheck2 size={13} className="flex-shrink-0 opacity-60" />
+            <select value={bulkAgent} onChange={e => setBulkAgent(e.target.value)}
+              className="flex-1 bg-white/10 rounded-lg px-2 py-1 text-xs font-medium outline-none cursor-pointer border border-white/20 focus:border-white/40"
+              style={{ color: "var(--surface-lowest)" }}>
+              <option value="">Reassign…</option>
+              {agentList.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+            <button onClick={applyBulkAgent} disabled={!bulkAgent}
+              className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white/15 hover:bg-white/25 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+              Apply
+            </button>
+          </div>
+          <div className="w-px h-5 bg-white/20 flex-shrink-0" />
+          <button onClick={() => setSelectedIds(new Set())}
+            className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/25 transition-colors flex-shrink-0">
+            <X size={13} />
+          </button>
+        </div>
+      )}
 
       {/* New Ticket Modal */}
       <Modal open={modalOpen} onClose={() => { setModalOpen(false); setErrors({}); setForm(emptyForm); }} title="New Ticket" subtitle="Create a new customer support request">

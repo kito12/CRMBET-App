@@ -1,12 +1,31 @@
 "use client";
 
+import { useRef } from "react";
 import { useData } from "@/components/DataProvider";
-import { Ticket, CheckCircle2, AlertCircle, TrendingUp, Users, Clock, CalendarDays } from "lucide-react";
+import { Ticket, CheckCircle2, AlertCircle, TrendingUp, Users, Clock, CalendarDays, Download } from "lucide-react";
+import type { Ticket as TicketType } from "@/lib/data";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function pct(part: number, total: number) {
   return total === 0 ? 0 : Math.round((part / total) * 100);
+}
+
+function avgResolutionMs(resolvedTickets: TicketType[]): number | null {
+  const times = resolvedTickets
+    .filter(t => t.resolvedAt && t.createdAt)
+    .map(t => new Date(t.resolvedAt!).getTime() - new Date(t.createdAt!).getTime())
+    .filter(ms => ms > 0);
+  if (times.length === 0) return null;
+  return times.reduce((s, t) => s + t, 0) / times.length;
+}
+
+function formatDuration(ms: number): string {
+  const mins = Math.floor(ms / 60000);
+  if (mins < 60)  return `${mins}m`;
+  const hrs = mins / 60;
+  if (hrs < 24)   return `${hrs.toFixed(1)}h`;
+  return `${(hrs / 24).toFixed(1)}d`;
 }
 
 function parseCreatedToDate(created: string): Date | null {
@@ -115,6 +134,7 @@ function DonutChart({ slices }: { slices: { value: number; color: string; label:
 
 export default function AnalyticsPage() {
   const { tickets, customers } = useData();
+  const reportRef = useRef<HTMLDivElement>(null);
 
   const total      = tickets.length;
   const open       = tickets.filter(t => t.status === "Open").length;
@@ -162,12 +182,18 @@ export default function AnalyticsPage() {
 
   // ── Agent leaderboard ──
   const agentNames = Array.from(new Set(tickets.map(t => t.agent))).filter(a => a !== "Unassigned");
-  const agentStats = agentNames.map(agent => ({
-    name: agent,
-    total:    tickets.filter(t => t.agent === agent).length,
-    resolved: tickets.filter(t => t.agent === agent && t.status === "Resolved").length,
-    open:     tickets.filter(t => t.agent === agent && (t.status === "Open" || t.status === "In Progress")).length,
-  })).sort((a, b) => b.total - a.total);
+  const agentStats = agentNames.map(agent => {
+    const agentTickets    = tickets.filter(t => t.agent === agent);
+    const resolvedTickets = agentTickets.filter(t => t.status === "Resolved");
+    const avgMs           = avgResolutionMs(resolvedTickets);
+    return {
+      name:     agent,
+      total:    agentTickets.length,
+      resolved: resolvedTickets.length,
+      open:     agentTickets.filter(t => t.status === "Open" || t.status === "In Progress").length,
+      avgMs,
+    };
+  }).sort((a, b) => b.total - a.total);
   const maxAgent = Math.max(...agentStats.map(a => a.total), 1);
 
   // ── Customer tier breakdown ──
@@ -183,13 +209,24 @@ export default function AnalyticsPage() {
   }));
   const maxTierTickets = Math.max(...tierStats.map(t => t.tickets), 1);
 
+  function handleExport() {
+    window.print();
+  }
+
   return (
-    <div className="max-w-[1400px] mx-auto">
+    <div className="max-w-[1400px] mx-auto" ref={reportRef}>
       {/* Header */}
-      <div className="mb-8">
-        <p className="text-label-caps text-[#48484a] mb-1">Insights</p>
-        <h1 className="text-display text-[#1a1c1c]">Analytics</h1>
-        <p className="text-sm text-[#48484a] mt-1">Support performance at a glance</p>
+      <div className="mb-8 flex items-end justify-between">
+        <div>
+          <p className="text-label-caps text-[#48484a] mb-1">Insights</p>
+          <h1 className="text-display text-[#1a1c1c]">Analytics</h1>
+          <p className="text-sm text-[#48484a] mt-1">Support performance at a glance</p>
+        </div>
+        <button onClick={handleExport}
+          className="no-print flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-[#48484a] hover:bg-[#f3f3f3] transition-colors"
+          style={{ background: "var(--surface-lowest)", border: "1px solid rgba(204,195,215,0.3)" }}>
+          <Download size={14} /> Export PDF
+        </button>
       </div>
 
       {/* Summary cards */}
@@ -293,19 +330,22 @@ export default function AnalyticsPage() {
           <h3 className="text-base font-semibold text-[#1a1c1c] tracking-tight -mt-3 mb-5">Agent Leaderboard</h3>
 
           {/* Header */}
-          <div className="grid grid-cols-[1.8fr_0.7fr_0.7fr_0.7fr_1.2fr] gap-3 px-3 mb-2">
-            {["AGENT", "TOTAL", "ACTIVE", "DONE", "WORKLOAD"].map(h => (
+          <div className="grid grid-cols-[1.4fr_0.55fr_0.55fr_0.55fr_0.6fr_0.7fr_1fr] gap-2 px-3 mb-2">
+            {["AGENT", "TOTAL", "ACTIVE", "DONE", "RATE", "AVG TIME", "WORKLOAD"].map(h => (
               <span key={h} className="text-label-caps text-[#48484a]">{h}</span>
             ))}
           </div>
 
           <div className="flex flex-col gap-1">
             {agentStats.map((agent, rank) => {
-              const initials = agent.name.split(" ").map((n: string) => n[0]).join("").toUpperCase();
-              const barW = Math.round((agent.total / maxAgent) * 100);
+              const initials   = agent.name.split(" ").map((n: string) => n[0]).join("").toUpperCase();
+              const barW       = Math.round((agent.total / maxAgent) * 100);
+              const rate       = agent.total > 0 ? Math.round((agent.resolved / agent.total) * 100) : 0;
+              const rateColor  = rate >= 70 ? "text-emerald-600" : rate >= 40 ? "text-amber-600" : "text-red-500";
+              const avgTimeStr = agent.avgMs != null ? formatDuration(agent.avgMs) : "—";
               return (
                 <div key={agent.name}
-                  className="grid grid-cols-[1.8fr_0.7fr_0.7fr_0.7fr_1.2fr] gap-3 items-center px-3 py-2.5 rounded-xl"
+                  className="grid grid-cols-[1.4fr_0.55fr_0.55fr_0.55fr_0.6fr_0.7fr_1fr] gap-2 items-center px-3 py-2.5 rounded-xl"
                   style={{ background: "var(--surface-low)" }}>
                   <div className="flex items-center gap-2.5 min-w-0">
                     <span className="text-xs font-bold text-[#48484a] w-4 flex-shrink-0">#{rank + 1}</span>
@@ -317,6 +357,8 @@ export default function AnalyticsPage() {
                   <span className="text-sm font-bold text-[#1a1c1c]">{agent.total}</span>
                   <span className="text-sm text-amber-600 font-medium">{agent.open}</span>
                   <span className="text-sm text-emerald-600 font-medium">{agent.resolved}</span>
+                  <span className={`text-sm font-semibold ${rateColor}`}>{rate}%</span>
+                  <span className="text-sm text-[#48484a] font-medium">{avgTimeStr}</span>
                   <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--surface-lowest)" }}>
                     <div className="h-1.5 rounded-full bg-purple-500 transition-all duration-500" style={{ width: `${barW}%` }} />
                   </div>

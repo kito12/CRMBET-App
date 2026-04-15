@@ -95,12 +95,13 @@ async function callSendEmail(payload: Record<string, string>) {
 }
 
 export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
-  const { cannedResponses, escalationSettings, addNotification } = useData();
+  const { cannedResponses, escalationSettings, addNotification, tickets: allTickets, customers } = useData();
   const { user: currentUser } = useAuth();
   const authorName = currentUser?.name ?? "Agent";
 
   const [form, setForm]             = useState<Ticket | null>(null);
   const [dirty, setDirty]           = useState(false);
+  const [c360Open, setC360Open]     = useState(false);
   const [noteText, setNoteText]     = useState("");
   const [replyText, setReplyText]   = useState("");
   const [showTemplates, setShowTemplates] = useState(false);
@@ -180,6 +181,10 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
 
     const updated: Ticket = {
       ...form,
+      // Stamp resolvedAt the first time a ticket is moved to Resolved
+      resolvedAt: form.status === "Resolved" && ticket.status !== "Resolved"
+        ? new Date().toISOString()
+        : form.resolvedAt,
       auditLog: newEntries.length
         ? [...newEntries, ...(form.auditLog ?? [])]
         : (form.auditLog ?? []),
@@ -405,6 +410,76 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
               </SelectField>
             </div>
           </div>
+
+          {/* Customer 360 */}
+          {(() => {
+            const customer = customers.find(c => c.clientId === ticket.clientId);
+            if (!customer) return null;
+            const tierColors: Record<string, string> = { VIP: "bg-purple-100 text-purple-700", Premium: "bg-blue-100 text-blue-700", Standard: "bg-slate-100 text-slate-600" };
+            const statusColors: Record<string, string> = { Active: "bg-emerald-50 text-emerald-700", Suspended: "bg-red-50 text-red-600", Pending: "bg-amber-50 text-amber-700" };
+            const relatedTickets = allTickets
+              .filter(t => t.clientId === ticket.clientId && t.id !== ticket.id)
+              .slice(0, 3);
+            return (
+              <div className="mb-6 rounded-xl overflow-hidden" style={{ border: "1px solid rgba(148,163,184,0.15)" }}>
+                <button
+                  onClick={() => setC360Open(v => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 transition-colors hover:bg-[#f3f3f3]"
+                  style={{ background: "var(--surface-low)" }}>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-6 h-6 rounded-lg gradient-primary flex items-center justify-center">
+                      <ExternalLink size={11} className="text-white" />
+                    </div>
+                    <span className="text-sm font-semibold text-[#1a1c1c]">Customer 360</span>
+                    <span className="text-xs text-[#48484a]">{customer.name}</span>
+                  </div>
+                  <ChevronDown size={15} className={`text-[#48484a] transition-transform duration-200 ${c360Open ? "rotate-180" : ""}`} />
+                </button>
+                {c360Open && (
+                  <div className="px-4 py-4" style={{ background: "var(--surface-lowest)" }}>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-9 h-9 rounded-full gradient-primary flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                        {customer.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-[#1a1c1c]">{customer.name}</p>
+                        <p className="text-xs text-[#48484a]">{customer.email}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {customer.accountType && (
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${tierColors[customer.accountType] ?? "bg-slate-100 text-slate-600"}`}>
+                            {customer.accountType}
+                          </span>
+                        )}
+                        {customer.status && (
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[customer.status] ?? "bg-slate-100 text-slate-600"}`}>
+                            {customer.status}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {relatedTickets.length > 0 && (
+                      <div>
+                        <p className="text-label-caps text-[#48484a] mb-2">Recent Tickets</p>
+                        <div className="flex flex-col gap-1.5">
+                          {relatedTickets.map(rt => (
+                            <div key={rt.id} className="flex items-center gap-2.5 px-3 py-2 rounded-lg" style={{ background: "var(--surface-low)" }}>
+                              <span className="text-xs font-semibold text-[#0058bf] flex-shrink-0">{rt.id}</span>
+                              <span className="text-xs text-[#48484a] flex-1 truncate">{rt.issue}</span>
+                              <StatusPill status={rt.status} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {relatedTickets.length === 0 && (
+                      <p className="text-xs text-[#48484a] text-center py-2">No other tickets for this customer.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Customer details */}
           <div className="grid grid-cols-2 gap-4 mb-4">
