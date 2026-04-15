@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useDeferredValue, useMemo } from "react";
-import { Search, UserCircle, Plus, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { Search, UserCircle, Plus, ChevronLeft, ChevronRight, Download, Upload, AlertTriangle, CheckCircle2, Crown, FileText, X } from "lucide-react";
 import Link from "next/link";
 import type { Customer, AccountType, CustomerStatus } from "@/lib/data";
 import { useData } from "@/components/DataProvider";
@@ -29,6 +29,104 @@ const defaultForm = {
   status: "Active" as CustomerStatus,
 };
 
+interface ParsedRow {
+  clientId: string;
+  name: string;
+  email: string;
+  phone: string;
+  country: string;
+  accountType: AccountType;
+  status: CustomerStatus;
+  isDuplicate: boolean;
+  errors: string[];
+}
+
+// Normalise a CSV header string to a known key
+function normaliseHeader(h: string): string {
+  return h.trim().toLowerCase().replace(/[\s_-]+/g, "");
+}
+
+const HEADER_MAP: Record<string, keyof Omit<ParsedRow, "isDuplicate" | "errors">> = {
+  clientid:    "clientId",  "client id": "clientId",   id: "clientId",
+  name:        "name",      fullname:    "name",        "full name": "name",
+  email:       "email",
+  phone:       "phone",     mobile:      "phone",       phonenumber: "phone",
+  country:     "country",
+  accounttype: "accountType", "account type": "accountType", type: "accountType",
+  status:      "status",
+};
+
+function parseCSVFile(text: string, existingIds: Set<string>, existingEmails: Set<string>): ParsedRow[] {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return [];
+
+  // Parse a single CSV line respecting quoted fields
+  function parseLine(line: string): string[] {
+    const fields: string[] = [];
+    let cur = "", inQuote = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuote && line[i + 1] === '"') { cur += '"'; i++; }
+        else inQuote = !inQuote;
+      } else if (ch === "," && !inQuote) {
+        fields.push(cur.trim()); cur = "";
+      } else cur += ch;
+    }
+    fields.push(cur.trim());
+    return fields;
+  }
+
+  const rawHeaders = parseLine(lines[0]).map(normaliseHeader);
+  const rows: ParsedRow[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const vals = parseLine(lines[i]);
+    const raw: Record<string, string> = {};
+    rawHeaders.forEach((h, idx) => {
+      const mapped = HEADER_MAP[h];
+      if (mapped) raw[mapped] = vals[idx]?.trim() ?? "";
+    });
+
+    const errors: string[] = [];
+    if (!raw.name)  errors.push("Name required");
+    if (!raw.email) errors.push("Email required");
+
+    // Normalise accountType
+    let acct: AccountType = "VIP";
+    const rawAcct = (raw.accountType ?? "").toLowerCase();
+    if (rawAcct === "premium") acct = "Premium";
+    else if (rawAcct === "standard") acct = "Standard";
+
+    // Normalise status
+    let stat: CustomerStatus = "Active";
+    const rawStat = (raw.status ?? "").toLowerCase();
+    if (rawStat === "suspended") stat = "Suspended";
+    else if (rawStat === "inactive") stat = "Inactive";
+
+    const clientId = raw.clientId
+      ? raw.clientId.toUpperCase()
+      : `CLT-${Date.now()}-${i}`;
+
+    const isDuplicate =
+      existingIds.has(clientId) ||
+      (!!raw.email && existingEmails.has(raw.email.toLowerCase()));
+
+    rows.push({
+      clientId,
+      name: raw.name ?? "",
+      email: raw.email ?? "",
+      phone: raw.phone ?? "",
+      country: raw.country ?? "",
+      accountType: acct,
+      status: stat,
+      isDuplicate,
+      errors,
+    });
+  }
+  return rows;
+}
+
 export default function CustomersPage() {
   const { customers, setCustomers, tickets, hydrated } = useData();
   const [searchInput, setSearchInput] = useState("");
@@ -37,6 +135,13 @@ export default function CustomersPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState(defaultForm);
   const [clientIdError, setClientIdError] = useState("");
+
+  // CSV Import state
+  const [importOpen, setImportOpen]     = useState(false);
+  const [importRows, setImportRows]     = useState<ParsedRow[]>([]);
+  const [importDone, setImportDone]     = useState(false);
+  const [importCount, setImportCount]   = useState(0);
+  const [dragOver, setDragOver]         = useState(false);
 
   useEffect(() => { setPage(1); }, [searchInput]);
 
@@ -72,6 +177,64 @@ export default function CustomersPage() {
     URL.revokeObjectURL(url);
   }
 
+  function downloadTemplate() {
+    const csv = `Client ID,Name,Email,Phone,Country,Account Type,Status\nCLT-1001,John Smith,john@example.com,+1 555 000 0001,United States,VIP,Active\nCLT-1002,Maria Garcia,maria@example.com,+34 600 000 002,Spain,VIP,Active`;
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const a = document.createElement("a"); a.href = url; a.download = "vip_import_template.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function processFile(file: File) {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const existingIds    = new Set(customers.map(c => c.clientId));
+      const existingEmails = new Set(customers.map(c => c.email.toLowerCase()));
+      const rows = parseCSVFile(text, existingIds, existingEmails);
+      setImportRows(rows);
+      setImportDone(false);
+    };
+    reader.readAsText(file);
+  }
+
+  function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) processFile(file);
+    e.target.value = "";
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith(".csv")) processFile(file);
+  }
+
+  function handleConfirmImport() {
+    const toImport = importRows.filter(r => !r.isDuplicate && r.errors.length === 0);
+    const now = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    const newCustomers: Customer[] = toImport.map(r => ({
+      clientId:    r.clientId,
+      name:        r.name,
+      email:       r.email,
+      phone:       r.phone,
+      country:     r.country,
+      accountType: r.accountType,
+      status:      r.status,
+      createdAt:   now,
+    }));
+    setCustomers(prev => [...newCustomers, ...prev]);
+    setImportCount(toImport.length);
+    setImportDone(true);
+  }
+
+  function closeImport() {
+    setImportOpen(false);
+    setImportRows([]);
+    setImportDone(false);
+    setImportCount(0);
+  }
+
   const filtered = useMemo(() => customers.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     c.clientId.toLowerCase().includes(search.toLowerCase()) ||
@@ -90,11 +253,16 @@ export default function CustomersPage() {
           <h1 className="text-display text-[#1a1c1c]">Customers</h1>
           <p className="text-sm text-[#48484a] mt-1">All registered client accounts</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
           <button onClick={exportCSV}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-[#48484a] hover:bg-[#f3f3f3] transition-colors"
             style={{ background: "var(--surface-lowest)", border: "1px solid rgba(204,195,215,0.3)" }}>
             <Download size={14} /> Export CSV
+          </button>
+          <button onClick={() => { setImportOpen(true); setImportRows([]); setImportDone(false); }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-purple-700 hover:bg-purple-50 transition-colors"
+            style={{ background: "rgba(237,233,254,0.6)", border: "1px solid rgba(147,51,234,0.2)" }}>
+            <Crown size={14} /> Import VIPs
           </button>
           <button onClick={() => setAddOpen(true)} className="gradient-primary text-white text-sm font-medium px-4 py-2.5 rounded-xl flex items-center gap-2 hover:opacity-90 transition-opacity shadow-ambient">
             <Plus size={15} /> Add Customer
@@ -260,6 +428,153 @@ export default function CustomersPage() {
           </div>
         </div>
       </div>
+
+      {/* ── CSV Import Modal ── */}
+      <Modal open={importOpen} onClose={closeImport} title="Import VIPs" subtitle="Bulk import customers from a CSV file">
+        {importDone ? (
+          // ── Success state ──
+          <div className="flex flex-col items-center gap-4 py-6 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center">
+              <CheckCircle2 size={28} className="text-emerald-500" />
+            </div>
+            <div>
+              <p className="text-lg font-bold text-[#1a1c1c]">{importCount} customer{importCount !== 1 ? "s" : ""} imported</p>
+              <p className="text-sm text-[#48484a] mt-1">They've been added to your customer list.</p>
+            </div>
+            <button onClick={closeImport}
+              className="px-6 py-2.5 rounded-xl text-sm font-medium text-white gradient-primary hover:opacity-90 transition-opacity">
+              Done
+            </button>
+          </div>
+        ) : importRows.length === 0 ? (
+          // ── Upload state ──
+          <div className="flex flex-col gap-4">
+            {/* Drag & drop zone */}
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              className={`relative flex flex-col items-center justify-center gap-3 p-8 rounded-2xl border-2 border-dashed transition-all ${dragOver ? "border-purple-400 bg-purple-50" : "border-slate-200"}`}
+              style={{ background: dragOver ? "rgba(237,233,254,0.4)" : "var(--surface-low)" }}>
+              <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center">
+                <Upload size={20} className="text-purple-500" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-semibold text-[#1a1c1c]">Drop your CSV here</p>
+                <p className="text-xs text-[#48484a] mt-0.5">or click to browse</p>
+              </div>
+              <label className="px-4 py-2 rounded-xl text-xs font-medium text-purple-700 cursor-pointer hover:bg-purple-100 transition-colors"
+                style={{ background: "rgba(237,233,254,0.8)" }}>
+                Browse file
+                <input type="file" accept=".csv" className="hidden" onChange={handleFileInput} />
+              </label>
+            </div>
+
+            {/* Template download */}
+            <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: "var(--surface-low)" }}>
+              <div className="flex items-center gap-2.5">
+                <FileText size={14} className="text-[#48484a]" />
+                <div>
+                  <p className="text-xs font-semibold text-[#1a1c1c]">Need a template?</p>
+                  <p className="text-xs text-[#48484a]">Columns: Client ID, Name, Email, Phone, Country, Account Type, Status</p>
+                </div>
+              </div>
+              <button onClick={downloadTemplate}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-purple-700 hover:bg-purple-100 transition-colors flex-shrink-0"
+                style={{ background: "rgba(237,233,254,0.6)" }}>
+                <Download size={11} /> Template
+              </button>
+            </div>
+
+            {/* Column format hint */}
+            <p className="text-xs text-[#48484a] text-center">
+              Account Type defaults to <span className="font-semibold text-purple-600">VIP</span> if not specified · Duplicates are skipped automatically
+            </p>
+          </div>
+        ) : (
+          // ── Preview state ──
+          (() => {
+            const valid      = importRows.filter(r => !r.isDuplicate && r.errors.length === 0);
+            const duplicates = importRows.filter(r => r.isDuplicate);
+            const errors     = importRows.filter(r => !r.isDuplicate && r.errors.length > 0);
+            return (
+              <div className="flex flex-col gap-4">
+                {/* Summary chips */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700">
+                    <CheckCircle2 size={12} /> {valid.length} will be imported
+                  </span>
+                  {duplicates.length > 0 && (
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-50 text-amber-700">
+                      <X size={12} /> {duplicates.length} duplicate{duplicates.length !== 1 ? "s" : ""} — skipped
+                    </span>
+                  )}
+                  {errors.length > 0 && (
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-red-50 text-red-700">
+                      <AlertTriangle size={12} /> {errors.length} error{errors.length !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                  <button onClick={() => setImportRows([])} className="ml-auto text-xs text-[#48484a] hover:text-red-500 transition-colors flex items-center gap-1">
+                    <Upload size={11} /> New file
+                  </button>
+                </div>
+
+                {/* Preview table */}
+                <div className="rounded-xl overflow-hidden border" style={{ borderColor: "rgba(204,195,215,0.2)" }}>
+                  <div className="grid grid-cols-[1fr_1.2fr_1.4fr_0.9fr_80px] gap-2 px-3 py-2 text-label-caps text-[#48484a]"
+                    style={{ background: "var(--surface-low)" }}>
+                    {["CLIENT ID", "NAME", "EMAIL", "TYPE", "STATUS"].map(h => <span key={h}>{h}</span>)}
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    {importRows.map((row, i) => {
+                      const rowBg =
+                        row.errors.length > 0 ? "rgba(254,226,226,0.5)" :
+                        row.isDuplicate       ? "rgba(255,251,235,0.5)" :
+                        "transparent";
+                      return (
+                        <div key={i}
+                          className="grid grid-cols-[1fr_1.2fr_1.4fr_0.9fr_80px] gap-2 px-3 py-2.5 items-center border-t text-xs"
+                          style={{ background: rowBg, borderColor: "rgba(204,195,215,0.1)" }}>
+                          <span className="font-medium text-purple-600 truncate">{row.clientId}</span>
+                          <span className="truncate text-[#1a1c1c]">{row.name || <span className="text-red-400 italic">missing</span>}</span>
+                          <span className="truncate text-[#48484a]">{row.email || <span className="text-red-400 italic">missing</span>}</span>
+                          <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold w-fit ${
+                            row.accountType === "VIP" ? "bg-purple-50 text-purple-700" :
+                            row.accountType === "Premium" ? "bg-blue-50 text-blue-700" :
+                            "bg-slate-100 text-slate-600"
+                          }`}>
+                            {row.accountType === "VIP" && <Crown size={7} />} {row.accountType}
+                          </span>
+                          <span>
+                            {row.errors.length > 0 ? (
+                              <span className="text-red-500 font-medium" title={row.errors.join(", ")}>Error</span>
+                            ) : row.isDuplicate ? (
+                              <span className="text-amber-600 font-medium">Duplicate</span>
+                            ) : (
+                              <span className="text-emerald-600 font-medium">Ready</span>
+                            )}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-1">
+                  <button onClick={closeImport}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium text-[#48484a]"
+                    style={{ background: "var(--surface-low)" }}>Cancel</button>
+                  <button onClick={handleConfirmImport} disabled={valid.length === 0}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white gradient-primary hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed">
+                    Import {valid.length} Customer{valid.length !== 1 ? "s" : ""}
+                  </button>
+                </div>
+              </div>
+            );
+          })()
+        )}
+      </Modal>
 
       <Modal open={addOpen} onClose={() => { setAddOpen(false); setClientIdError(""); setForm(defaultForm); }} title="Add Customer" subtitle="Create a new client account">
         <form onSubmit={handleAddCustomer} className="flex flex-col gap-4">
