@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import {
-  collection, doc, onSnapshot, writeBatch, setDoc,
+  collection, doc, onSnapshot, writeBatch, setDoc, query, where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "./AuthProvider";
@@ -36,6 +36,7 @@ interface DataContextType {
   setEscalationSettings: React.Dispatch<React.SetStateAction<EscalationSettings>>;
   resetData: () => void;
   hydrated: boolean;
+  messagesUnreadCount: number;
 }
 
 const DataContext = createContext<DataContextType | null>(null);
@@ -96,6 +97,7 @@ export default function DataProvider({ children }: { children: React.ReactNode }
   const [cannedResponses,    _setCannedResponses]    = useState<CannedResponse[]>([]);
   const [escalationSettings, _setEscalationSettings] = useState<EscalationSettings>(defaultEscalationSettings);
   const [hydrated,           setHydrated]            = useState(false);
+  const [messagesUnreadCount, setMessagesUnreadCount] = useState(0);
 
   // Refs for synchronous access in async callbacks and the SLA checker
   const ticketsRef   = useRef<Ticket[]>([]);
@@ -248,12 +250,26 @@ export default function DataProvider({ children }: { children: React.ReactNode }
       markLoaded("escalation");
     });
 
+    // Messages unread count (conversations where current user is a participant)
+    const unsubConversations = onSnapshot(
+      query(collection(db, "conversations"), where("participants", "array-contains", user.uid)),
+      snap => {
+        let total = 0;
+        snap.docs.forEach(d => {
+          const data = d.data();
+          total += (data.unread?.[user.uid] as number) ?? 0;
+        });
+        setMessagesUnreadCount(total);
+      }
+    );
+
     return () => {
       unsubTickets();
       unsubCustomers();
       unsubNotifs();
       unsubCanned();
       unsubEscalation();
+      unsubConversations();
     };
   }, [user]);
 
@@ -383,7 +399,7 @@ export default function DataProvider({ children }: { children: React.ReactNode }
       notifications, setNotifications, addNotification, unreadCount, markAllRead, clearNotifications,
       cannedResponses, setCannedResponses,
       escalationSettings, setEscalationSettings,
-      resetData, hydrated,
+      resetData, hydrated, messagesUnreadCount,
     }}>
       {children}
     </DataContext.Provider>
