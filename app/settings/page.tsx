@@ -77,6 +77,8 @@ export default function SettingsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [cannedSaved, setCannedSaved] = useState(false);
 
+  const isAdmin = user?.role === "admin";
+
   /* ── Global save toast ── */
   const [saved, setSaved] = useState(false);
   function handleSave() { setSaved(true); setTimeout(() => setSaved(false), 2000); }
@@ -108,7 +110,7 @@ export default function SettingsPage() {
     setDeleteConfirm(null);
   }
 
-  const inputClass = "w-full px-4 py-2.5 rounded-xl text-sm text-[#1a1c1c] outline-none focus:ring-2 focus:ring-purple-200 transition-all";
+  const inputClass = "w-full px-4 py-2.5 rounded-xl text-sm text-[#1a1c1c] outline-none focus:ring-2 focus:ring-purple-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed";
   const labelClass = "block text-xs font-medium text-[#48484a] mb-1.5 uppercase tracking-wide";
   const cardStyle = { background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" };
 
@@ -197,35 +199,42 @@ export default function SettingsPage() {
 
       {/* ── CRM Settings ── */}
       <div className="rounded-2xl p-6 mb-5" style={cardStyle}>
-        <div className="flex items-center gap-2 mb-5">
-          <div className="w-7 h-7 rounded-lg gradient-primary flex items-center justify-center"><Monitor size={13} className="text-white" /></div>
-          <h2 className="text-base font-semibold text-[#1a1c1c]">CRM Settings</h2>
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg gradient-primary flex items-center justify-center"><Monitor size={13} className="text-white" /></div>
+            <h2 className="text-base font-semibold text-[#1a1c1c]">CRM Settings</h2>
+          </div>
+          {!isAdmin && <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-amber-700" style={{ background: "rgba(245,158,11,0.1)" }}>🔒 Admin only</span>}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>CRM Name</label>
             <input value={crm.name} onChange={e => setCrm({ ...crm, name: e.target.value })}
+              disabled={!isAdmin}
               className={inputClass} style={{ background: "var(--surface-low)" }}
-              onFocus={e => (e.target.style.background = "var(--surface-lowest)")}
+              onFocus={e => { if (isAdmin) e.target.style.background = "var(--surface-lowest)"; }}
               onBlur={e => (e.target.style.background = "var(--surface-low)")} />
           </div>
           <div>
             <label className={labelClass}>SLA Target (minutes)</label>
             <input type="number" value={crm.slaTarget} onChange={e => setCrm({ ...crm, slaTarget: e.target.value })}
+              disabled={!isAdmin}
               className={inputClass} style={{ background: "var(--surface-low)" }}
-              onFocus={e => (e.target.style.background = "var(--surface-lowest)")}
+              onFocus={e => { if (isAdmin) e.target.style.background = "var(--surface-lowest)"; }}
               onBlur={e => (e.target.style.background = "var(--surface-low)")} />
           </div>
           <div>
             <label className={labelClass}>Head Office CRM Name</label>
             <input value={crm.headOfficeName} onChange={e => setCrm({ ...crm, headOfficeName: e.target.value })}
+              disabled={!isAdmin}
               className={inputClass} style={{ background: "var(--surface-low)" }}
-              onFocus={e => (e.target.style.background = "var(--surface-lowest)")}
+              onFocus={e => { if (isAdmin) e.target.style.background = "var(--surface-lowest)"; }}
               onBlur={e => (e.target.style.background = "var(--surface-low)")} />
           </div>
           <div>
             <label className={labelClass}>Default Assigned Agent</label>
             <select value={crm.defaultAgent} onChange={e => setCrm({ ...crm, defaultAgent: e.target.value })}
+              disabled={!isAdmin}
               className={inputClass} style={{ background: "var(--surface-low)" }}>
               {agentList.map(a => <option key={a}>{a}</option>)}
             </select>
@@ -235,11 +244,14 @@ export default function SettingsPage() {
 
       {/* ── Escalation Settings ── */}
       <div className="rounded-2xl p-6 mb-5" style={cardStyle}>
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center">
-            <ArrowUpCircle size={13} className="text-amber-600" />
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center">
+              <ArrowUpCircle size={13} className="text-amber-600" />
+            </div>
+            <h2 className="text-base font-semibold text-[#1a1c1c]">Escalation Settings</h2>
           </div>
-          <h2 className="text-base font-semibold text-[#1a1c1c]">Escalation Settings</h2>
+          {!isAdmin && <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-amber-700" style={{ background: "rgba(245,158,11,0.1)" }}>🔒 Admin only</span>}
         </div>
         <p className="text-xs text-[#48484a] mb-5">Configure automatic escalation rules for unresolved tickets.</p>
 
@@ -251,16 +263,17 @@ export default function SettingsPage() {
           </div>
           <Toggle
             on={escalationSettings.enabled}
-            onToggle={() => setEscalationSettings(s => ({ ...s, enabled: !s.enabled }))}
+            onToggle={() => { if (isAdmin) setEscalationSettings(s => ({ ...s, enabled: !s.enabled })); }}
           />
         </div>
 
-        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-opacity duration-200 ${escalationSettings.enabled ? "opacity-100" : "opacity-40 pointer-events-none"}`}>
+        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-opacity duration-200 ${escalationSettings.enabled && isAdmin ? "opacity-100" : !isAdmin ? "opacity-50 pointer-events-none" : "opacity-40 pointer-events-none"}`}>
           <div>
             <label className={labelClass}>Escalation Threshold</label>
             <select
               value={escalationSettings.thresholdHours}
               onChange={e => setEscalationSettings(s => ({ ...s, thresholdHours: Number(e.target.value) }))}
+              disabled={!isAdmin}
               className={inputClass} style={{ background: "var(--surface-low)" }}
             >
               {[1, 2, 4, 8, 24].map(h => (
@@ -273,6 +286,7 @@ export default function SettingsPage() {
             <select
               value={escalationSettings.tier2Agent}
               onChange={e => setEscalationSettings(s => ({ ...s, tier2Agent: e.target.value }))}
+              disabled={!isAdmin}
               className={inputClass} style={{ background: "var(--surface-low)" }}
             >
               {agentList.filter(a => a !== "Unassigned").map(a => <option key={a}>{a}</option>)}
@@ -285,8 +299,9 @@ export default function SettingsPage() {
               placeholder="https://headoffice.example.com/tickets/{{ticket_id}}"
               value={escalationSettings.headOfficeUrl}
               onChange={e => setEscalationSettings(s => ({ ...s, headOfficeUrl: e.target.value }))}
+              disabled={!isAdmin}
               className={inputClass} style={{ background: "var(--surface-low)" }}
-              onFocus={e => (e.target.style.background = "var(--surface-lowest)")}
+              onFocus={e => { if (isAdmin) e.target.style.background = "var(--surface-lowest)"; }}
               onBlur={e => (e.target.style.background = "var(--surface-low)")}
             />
             <p className="text-xs text-[#48484a] mt-1.5">Use <code className="px-1 py-0.5 rounded bg-purple-50 text-purple-700 text-[11px]">{"{{ticket_id}}"}</code> as a placeholder — it will be replaced with the actual ticket ID when opening.</p>
@@ -321,10 +336,14 @@ export default function SettingsPage() {
               </span>
             )}
           </div>
-          <button onClick={openNew}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white gradient-primary hover:opacity-90 transition-opacity">
-            <Plus size={12} /> Add Template
-          </button>
+          {isAdmin ? (
+            <button onClick={openNew}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white gradient-primary hover:opacity-90 transition-opacity">
+              <Plus size={12} /> Add Template
+            </button>
+          ) : (
+            <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-amber-700" style={{ background: "rgba(245,158,11,0.1)" }}>🔒 Admin only</span>
+          )}
         </div>
         <p className="text-xs text-[#48484a] mb-5">Pre-written responses for common support scenarios. Use <code className="px-1 py-0.5 rounded bg-purple-50 text-purple-700 text-[11px]">{"{{customer_name}}"}</code> and <code className="px-1 py-0.5 rounded bg-purple-50 text-purple-700 text-[11px]">{"{{ticket_id}}"}</code> as placeholders.</p>
 
@@ -396,30 +415,32 @@ export default function SettingsPage() {
                 </div>
                 <p className="text-xs text-[#48484a] line-clamp-2 leading-relaxed">{cr.body}</p>
               </div>
-              {/* Actions */}
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <button onClick={() => openEdit(cr)}
-                  className="w-7 h-7 flex items-center justify-center rounded-lg text-[#48484a] hover:text-purple-600 hover:bg-purple-50 transition-colors">
-                  <Pencil size={13} />
-                </button>
-                {deleteConfirm === cr.id ? (
-                  <>
-                    <button onClick={() => deleteCanned(cr.id)}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-red-600 hover:bg-red-50 transition-colors">
-                      <Check size={13} />
-                    </button>
-                    <button onClick={() => setDeleteConfirm(null)}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-[#48484a] hover:bg-[#f3f3f3] transition-colors">
-                      <X size={13} />
-                    </button>
-                  </>
-                ) : (
-                  <button onClick={() => setDeleteConfirm(cr.id)}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-[#48484a] hover:text-red-500 hover:bg-red-50 transition-colors">
-                    <Trash2 size={13} />
+              {/* Actions — admin only */}
+              {isAdmin && (
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button onClick={() => openEdit(cr)}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-[#48484a] hover:text-purple-600 hover:bg-purple-50 transition-colors">
+                    <Pencil size={13} />
                   </button>
-                )}
-              </div>
+                  {deleteConfirm === cr.id ? (
+                    <>
+                      <button onClick={() => deleteCanned(cr.id)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-red-600 hover:bg-red-50 transition-colors">
+                        <Check size={13} />
+                      </button>
+                      <button onClick={() => setDeleteConfirm(null)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-[#48484a] hover:bg-[#f3f3f3] transition-colors">
+                        <X size={13} />
+                      </button>
+                    </>
+                  ) : (
+                    <button onClick={() => setDeleteConfirm(cr.id)}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-[#48484a] hover:text-red-500 hover:bg-red-50 transition-colors">
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

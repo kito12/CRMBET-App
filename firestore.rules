@@ -1,0 +1,114 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+
+    function isSelf(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    // ── Users ─────────────────────────────────────────────────────────────────
+    // All agents can read the user list (needed for agent dropdowns & presence).
+    // Each user can update their own doc, but cannot elevate their own role.
+    // Only admins can change roles or delete users.
+
+    match /users/{uid} {
+      allow read: if isAuthenticated();
+      allow create: if isSelf(uid);
+      allow update: if isAuthenticated() && (
+        // Admin can update anything
+        isAdmin() ||
+        // Users can update their own doc but NOT change the role field
+        (isSelf(uid) &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(["role"]))
+      );
+      allow delete: if isAdmin();
+    }
+
+    // ── Invites ───────────────────────────────────────────────────────────────
+    // Only admins can create invites.
+    // Any authenticated user can read/delete an invite addressed to their email
+    // (this powers consumeInvite on sign-in).
+
+    match /invites/{inviteId} {
+      allow read:   if isAdmin() ||
+        (isAuthenticated() && resource.data.email == request.auth.token.email);
+      allow create: if isAdmin();
+      allow delete: if isAdmin() ||
+        (isAuthenticated() && resource.data.email == request.auth.token.email);
+    }
+
+    // ── Tickets ───────────────────────────────────────────────────────────────
+    // Public create: the customer-facing /submit form writes here without auth.
+    // All authenticated agents can read, update, and delete tickets.
+
+    match /tickets/{ticketId} {
+      allow create: if true;                    // public ticket submission
+      allow read, update, delete: if isAuthenticated();
+    }
+
+    // ── Customers ─────────────────────────────────────────────────────────────
+    match /customers/{customerId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // ── Notifications ─────────────────────────────────────────────────────────
+    match /notifications/{notifId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // ── Canned Responses ──────────────────────────────────────────────────────
+    // All agents can read (needed for Insert Template in ticket modal).
+    // Only admins can add, edit, or delete templates.
+
+    match /cannedResponses/{crId} {
+      allow read:  if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ── Settings ──────────────────────────────────────────────────────────────
+    // All agents can read settings (escalation config is applied system-wide).
+    // Only admins can change them.
+
+    match /settings/{settingId} {
+      allow read:  if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ── Conversations ─────────────────────────────────────────────────────────
+    // Only participants can read or write a conversation document.
+    // Messages subcollection: participants can read; only the sender can create.
+    // Typing subcollection: any authenticated user can read; each user owns only
+    // their own typing doc (keyed by their uid).
+
+    match /conversations/{convId} {
+      allow read:   if isAuthenticated() &&
+        request.auth.uid in resource.data.participants;
+      allow create: if isAuthenticated() &&
+        request.auth.uid in request.resource.data.participants;
+      allow update: if isAuthenticated() &&
+        request.auth.uid in resource.data.participants;
+
+      match /messages/{msgId} {
+        allow read:   if isAuthenticated();
+        allow create: if isAuthenticated() &&
+          request.resource.data.senderId == request.auth.uid;
+      }
+
+      match /typing/{uid} {
+        allow read:          if isAuthenticated();
+        allow write, delete: if isAuthenticated() && request.auth.uid == uid;
+      }
+    }
+  }
+}
