@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   User, Bell, Monitor, Info, Save, Zap, ArrowUpCircle,
-  MessageSquare, Plus, Pencil, Trash2, Check, X, ChevronDown, Link2, Copy,
+  MessageSquare, Plus, Pencil, Trash2, Check, X, ChevronDown, Link2, Copy, AlertTriangle,
 } from "lucide-react";
 import { useData } from "@/components/DataProvider";
 import { useAuth } from "@/components/AuthProvider";
@@ -34,7 +34,7 @@ const CATEGORIES = ["Withdrawal", "Bet Settlement", "Account Access", "Bonus Dis
 const blankCanned = (): Omit<CannedResponse, "id"> => ({ title: "", category: "General", body: "" });
 
 export default function SettingsPage() {
-  const { escalationSettings, setEscalationSettings, cannedResponses, setCannedResponses } = useData();
+  const { escalationSettings, setEscalationSettings, cannedResponses, setCannedResponses, clearAllData, resetData } = useData();
   const { user, signOut } = useAuth();
 
   /* ── Profile / Notifications / CRM local state ── */
@@ -70,6 +70,21 @@ export default function SettingsPage() {
   /* ── Global save toast ── */
   const [saved, setSaved] = useState(false);
   function handleSave() { setSaved(true); setTimeout(() => setSaved(false), 2000); }
+
+  /* ── Danger zone ── */
+  const [dangerAction, setDangerAction] = useState<"clear" | "reset" | null>(null);
+  const [dangerWorking, setDangerWorking] = useState(false);
+  async function executeDanger() {
+    if (!dangerAction) return;
+    setDangerWorking(true);
+    try {
+      if (dangerAction === "clear") await clearAllData();
+      else await resetData();
+    } finally {
+      setDangerWorking(false);
+      setDangerAction(null);
+    }
+  }
 
   /* ── Canned CRUD helpers ── */
   function openNew() {
@@ -460,6 +475,74 @@ export default function SettingsPage() {
             <p className="text-xs text-[#48484a]">Customer support platform for betting operations</p>
           </div>
         </div>
+      </div>
+
+      {/* ── Danger Zone ── */}
+      <div className="rounded-2xl p-6 mb-8" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)", border: "1px solid rgba(239,68,68,0.15)" }}>
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-7 h-7 rounded-lg bg-red-100 flex items-center justify-center">
+            <AlertTriangle size={13} className="text-red-600" />
+          </div>
+          <h2 className="text-base font-semibold text-red-600">Danger Zone</h2>
+        </div>
+        <p className="text-xs text-[#48484a] mb-5">These actions affect all team members. They cannot be undone.</p>
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          {/* Clear all data */}
+          <div className="flex-1 rounded-xl p-4" style={{ background: "var(--surface-low)", border: "1px solid rgba(239,68,68,0.1)" }}>
+            <p className="text-sm font-semibold text-[#1a1c1c] mb-1">Clear All Data</p>
+            <p className="text-xs text-[#48484a] mb-3">Delete all tickets, customers, and notifications. Leaves a blank slate.</p>
+            <button onClick={() => setDangerAction("clear")}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
+              style={{ border: "1px solid rgba(239,68,68,0.3)" }}>
+              Clear All Data
+            </button>
+          </div>
+
+          {/* Load demo data */}
+          <div className="flex-1 rounded-xl p-4" style={{ background: "var(--surface-low)", border: "1px solid rgba(239,68,68,0.1)" }}>
+            <p className="text-sm font-semibold text-[#1a1c1c] mb-1">Load Demo Data</p>
+            <p className="text-xs text-[#48484a] mb-3">Replace everything with sample tickets and customers for testing.</p>
+            <button onClick={() => setDangerAction("reset")}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors"
+              style={{ border: "1px solid rgba(245,158,11,0.3)" }}>
+              Load Demo Data
+            </button>
+          </div>
+        </div>
+
+        {/* Confirmation modal */}
+        {dangerAction && (
+          <>
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" onClick={() => !dangerWorking && setDangerAction(null)} />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="w-full max-w-sm rounded-2xl p-7" style={{ background: "var(--surface-lowest)", boxShadow: "0 24px 80px rgba(0,0,0,0.2)" }}>
+                <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center mb-4">
+                  <AlertTriangle size={18} className="text-red-600" />
+                </div>
+                <h3 className="text-base font-semibold text-[#1a1c1c] mb-2">
+                  {dangerAction === "clear" ? "Clear all data?" : "Load demo data?"}
+                </h3>
+                <p className="text-sm text-[#48484a] mb-6">
+                  {dangerAction === "clear"
+                    ? "All tickets, customers, and notifications will be permanently deleted for everyone on the team. This cannot be undone."
+                    : "All current tickets, customers, and notifications will be replaced with demo data for all team members. This cannot be undone."}
+                </p>
+                <div className="flex gap-3">
+                  <button onClick={() => setDangerAction(null)} disabled={dangerWorking}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium disabled:opacity-50"
+                    style={{ background: "var(--surface-low)", color: "var(--on-surface-variant)" }}>
+                    Cancel
+                  </button>
+                  <button onClick={executeDanger} disabled={dangerWorking}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50">
+                    {dangerWorking ? "Working…" : dangerAction === "clear" ? "Yes, clear it" : "Yes, load demo"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="flex justify-end pb-8">
