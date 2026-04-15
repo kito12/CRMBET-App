@@ -319,13 +319,22 @@ export default function DataProvider({ children }: { children: React.ReactNode }
           if (escalRef.current.enabled && ageHours >= escalRef.current.thresholdHours && !t.escalated) {
             changed = true;
             const escalatedTo = escalRef.current.tier2Agent;
+            // Only reassign if the ticket is currently unassigned — never pull a ticket
+            // away from an agent who is already working it.
+            const alreadyAssigned = t.agent !== "Unassigned";
+            const newAgent = alreadyAssigned ? t.agent : escalatedTo;
+            const noteText = alreadyAssigned
+              ? `Escalated flag set after ${escalRef.current.thresholdHours}h — ticket remains with ${t.agent}.`
+              : `Auto-escalated to ${escalatedTo} after ${escalRef.current.thresholdHours}h without resolution.`;
             setNotifications(ns => {
               if (ns.some(n => n.ticketId === t.id && n.type === "escalated")) return ns;
               return [{
                 id: `n-esc-${t.id}`,
                 type: "escalated" as const,
                 ticketId: t.id,
-                message: `${t.id} auto-escalated to ${escalatedTo} after ${escalRef.current.thresholdHours}h`,
+                message: alreadyAssigned
+                  ? `${t.id} SLA escalation flagged — assigned to ${t.agent}`
+                  : `${t.id} auto-escalated to ${escalatedTo} after ${escalRef.current.thresholdHours}h`,
                 timestamp: nowLabel(),
                 read: false,
               }, ...ns];
@@ -334,7 +343,7 @@ export default function DataProvider({ children }: { children: React.ReactNode }
               id: `audit-esc-${t.id}-${Date.now()}`,
               action: "escalated",
               from: t.agent,
-              to: escalatedTo,
+              to: newAgent,
               author: "System",
               timestamp: nowLabel(),
             };
@@ -343,11 +352,11 @@ export default function DataProvider({ children }: { children: React.ReactNode }
               escalated: true,
               escalatedAt: nowLabel(),
               escalatedTo,
-              agent: escalatedTo,
+              agent: newAgent,
               notes: [...(t.notes ?? []), {
                 id: `esc-${Date.now()}`,
                 author: "System",
-                text: `Auto-escalated to ${escalatedTo} after ${escalRef.current.thresholdHours}h without resolution.`,
+                text: noteText,
                 timestamp: nowLabel(),
               }],
               auditLog: [auditEntry, ...(t.auditLog ?? [])],
