@@ -7,7 +7,7 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, deleteDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
 export type UserRole = "admin" | "agent";
@@ -44,14 +44,17 @@ function isAdminEmail(email: string) {
   return list.includes(email.toLowerCase());
 }
 
-async function isInvited(email: string): Promise<boolean> {
+// Check invite AND consume (delete) it so it disappears from the pending list
+async function consumeInvite(email: string): Promise<boolean> {
   try {
     const q = query(
       collection(db, "invites"),
       where("email", "==", email.toLowerCase())
     );
     const snap = await getDocs(q);
-    return !snap.empty;
+    if (snap.empty) return false;
+    await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+    return true;
   } catch {
     return false;
   }
@@ -86,8 +89,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
               role = admin ? "admin" : (data.role as UserRole ?? "agent");
               await setDoc(userRef, { name, photo: photo ?? null, role }, { merge: true });
             } else {
-              // New user — must be admin or invited
-              const invited = admin ? true : await isInvited(email);
+              // New user — must be admin or invited; consuming the invite removes it from pending
+              const invited = admin ? true : await consumeInvite(email);
               if (!invited) {
                 await firebaseSignOut(auth);
                 setAuthError("Your account hasn't been granted access. Contact your administrator.");

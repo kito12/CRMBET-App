@@ -12,6 +12,7 @@ import type { Ticket, TicketStatus, TicketPriority, Note, AuditEntry, AuditActio
 import { StatusPill, PriorityPill } from "@/components/ui/StatusPill";
 import { InputField, SelectField, TextareaField } from "@/components/ui/FormField";
 import { useData } from "@/components/DataProvider";
+import { useAuth } from "@/components/AuthProvider";
 
 interface Props {
   ticket: Ticket | null;
@@ -95,6 +96,8 @@ async function callSendEmail(payload: Record<string, string>) {
 
 export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
   const { cannedResponses, escalationSettings, addNotification } = useData();
+  const { user: currentUser } = useAuth();
+  const authorName = currentUser?.name ?? "Agent";
 
   const [form, setForm]             = useState<Ticket | null>(null);
   const [dirty, setDirty]           = useState(false);
@@ -169,11 +172,11 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
     const newEntries: AuditEntry[] = [];
 
     if (form.status !== ticket.status)
-      newEntries.push({ id: `a-${Date.now()}-s`,   action: "status_changed",   from: ticket.status,   to: form.status,   author: "You", timestamp: ts });
+      newEntries.push({ id: `a-${Date.now()}-s`,   action: "status_changed",   from: ticket.status,   to: form.status,   author: authorName, timestamp: ts });
     if (form.agent !== ticket.agent)
-      newEntries.push({ id: `a-${Date.now()}-ag`,  action: "agent_changed",    from: ticket.agent,    to: form.agent,    author: "You", timestamp: ts });
+      newEntries.push({ id: `a-${Date.now()}-ag`,  action: "agent_changed",    from: ticket.agent,    to: form.agent,    author: authorName, timestamp: ts });
     if (form.priority !== ticket.priority)
-      newEntries.push({ id: `a-${Date.now()}-p`,   action: "priority_changed", from: ticket.priority, to: form.priority, author: "You", timestamp: ts });
+      newEntries.push({ id: `a-${Date.now()}-p`,   action: "priority_changed", from: ticket.priority, to: form.priority, author: authorName, timestamp: ts });
 
     const updated: Ticket = {
       ...form,
@@ -199,8 +202,8 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
   function addNote() {
     if (!noteText.trim() || !form) return;
     const ts = nowLabel();
-    const note: Note = { id: Date.now().toString(), author: "You", text: noteText.trim(), timestamp: ts };
-    const auditEntry: AuditEntry = { id: `a-note-${Date.now()}`, action: "note_added", author: "You", timestamp: ts };
+    const note: Note = { id: Date.now().toString(), author: authorName, text: noteText.trim(), timestamp: ts };
+    const auditEntry: AuditEntry = { id: `a-note-${Date.now()}`, action: "note_added", author: authorName, timestamp: ts };
     const updated: Ticket = {
       ...form,
       notes: [...(form.notes ?? []), note],
@@ -236,8 +239,8 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
   function sendReplyAsNote() {
     if (!replyText.trim() || !form) return;
     const ts = nowLabel();
-    const note: Note = { id: Date.now().toString(), author: "You (reply)", text: replyText.trim(), timestamp: ts };
-    const auditEntry: AuditEntry = { id: `a-reply-${Date.now()}`, action: "note_added", author: "You", timestamp: ts };
+    const note: Note = { id: Date.now().toString(), author: `${authorName} (reply)`, text: replyText.trim(), timestamp: ts };
+    const auditEntry: AuditEntry = { id: `a-reply-${Date.now()}`, action: "note_added", author: authorName, timestamp: ts };
     const updated: Ticket = {
       ...form,
       notes: [...(form.notes ?? []), note],
@@ -256,8 +259,8 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
     try {
       // Log as note first
       const ts = nowLabel();
-      const note: Note = { id: Date.now().toString(), author: "You (email reply)", text: replyText.trim(), timestamp: ts };
-      const auditEntry: AuditEntry = { id: `a-email-${Date.now()}`, action: "note_added", author: "You", timestamp: ts };
+      const note: Note = { id: Date.now().toString(), author: `${authorName} (email reply)`, text: replyText.trim(), timestamp: ts };
+      const auditEntry: AuditEntry = { id: `a-email-${Date.now()}`, action: "note_added", author: authorName, timestamp: ts };
       const updated: Ticket = {
         ...form,
         notes: [...(form.notes ?? []), note],
@@ -298,8 +301,8 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
     if (!form) return;
     const to  = escalationSettings.tier2Agent;
     const ts  = nowLabel();
-    const note: Note = { id: `esc-${Date.now()}`, author: "You", text: `Manually escalated to ${to} at ${ts}.`, timestamp: ts };
-    const auditEntry: AuditEntry = { id: `a-esc-${Date.now()}`, action: "escalated", from: form.agent, to, author: "You", timestamp: ts };
+    const note: Note = { id: `esc-${Date.now()}`, author: authorName, text: `Manually escalated to ${to} at ${ts}.`, timestamp: ts };
+    const auditEntry: AuditEntry = { id: `a-esc-${Date.now()}`, action: "escalated", from: form.agent, to, author: authorName, timestamp: ts };
     const updated: Ticket = {
       ...form,
       escalated: true,
@@ -312,7 +315,7 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
     setForm(updated);
     setDirty(false);
     onSave(updated);
-    addNotification({ type: "escalated", ticketId: form.id, message: `${form.id} escalated to ${to} by You` });
+    addNotification({ type: "escalated", ticketId: form.id, message: `${form.id} escalated to ${to} by ${authorName}` });
   }
 
   const sla = getSLABadge(ticket.created, form.status);
