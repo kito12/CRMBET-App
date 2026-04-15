@@ -74,18 +74,22 @@ const emptyForm = {
   agent: "Unassigned", description: "",
 };
 
-// SLA dot color — respects per-priority policy
-function getSLADotClass(ticket: Ticket, policy: { firstReplyMinutes: number; resolutionMinutes: number }): string {
+// Response dot — shows whether the agent has left a note on the ticket
+// 🟢 green  = resolved
+// 🟡 amber  = on hold OR note added but still open
+// 🔴 red    = no note yet — agent needs to respond
+function getSLADotClass(ticket: Ticket): string {
   if (ticket.status === "Resolved") return "bg-emerald-400";
   if (ticket.status === "On Hold")  return "bg-amber-400";
-  const d = parseTicketDate(ticket);
-  if (!d) return "bg-slate-300";
-  const elapsedMs  = Date.now() - d.getTime();
-  const targetMs   = (ticket.status === "Open" ? policy.firstReplyMinutes : policy.resolutionMinutes) * 60_000;
-  const pctUsed    = elapsedMs / targetMs;
-  if (pctUsed < 0.75) return "bg-emerald-400";
-  if (pctUsed < 1)    return "bg-amber-400";
-  return "bg-red-400";
+  const hasNote = (ticket.auditLog ?? []).some(e => e.action === "note_added");
+  return hasNote ? "bg-amber-400" : "bg-red-400";
+}
+
+function getSLADotTitle(ticket: Ticket): string {
+  if (ticket.status === "Resolved") return "Resolved";
+  if (ticket.status === "On Hold")  return "On Hold";
+  const hasNote = (ticket.auditLog ?? []).some(e => e.action === "note_added");
+  return hasNote ? "Note added — awaiting resolution" : "No note yet — action required";
 }
 
 // Helper to check if a ticket belongs to a VIP customer
@@ -94,7 +98,7 @@ function isVIPTicket(ticket: Ticket, customers: { clientId: string; accountType:
 }
 
 export default function TicketsPage() {
-  const { tickets, setTickets, customers, hydrated, slaPolicy } = useData();
+  const { tickets, setTickets, customers, hydrated } = useData();
   const { user: currentUser } = useAuth();
   const [agentList, setAgentList] = useState<string[]>(["Unassigned"]);
 
@@ -589,7 +593,7 @@ export default function TicketsPage() {
             <div className="flex items-center justify-between">
               <span className="text-xs text-[#48484a]">{ticket.agent}</span>
               <div className="flex items-center gap-1.5">
-                <span className={`w-1.5 h-1.5 rounded-full ${getSLADotClass(ticket, slaPolicy[ticket.priority])}`} />
+                <span title={getSLADotTitle(ticket)} className={`w-1.5 h-1.5 rounded-full ${getSLADotClass(ticket)}`} />
                 <span className="text-xs text-[#48484a]">{formatCreated(ticket)}</span>
               </div>
             </div>
@@ -663,7 +667,7 @@ export default function TicketsPage() {
               <StatusPill status={ticket.status} />
               <span className="text-sm text-[#48484a]">{ticket.agent}</span>
               <div className="flex items-center gap-1.5">
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getSLADotClass(ticket, slaPolicy[ticket.priority])}`} />
+                <span title={getSLADotTitle(ticket)} className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getSLADotClass(ticket)}`} />
                 <span className="text-xs text-[#48484a]">{formatCreated(ticket)}</span>
               </div>
               {/* Quick resolve */}
