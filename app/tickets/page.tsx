@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useDeferredValue, useMemo } from "react";
-import { collection, onSnapshot, doc, setDoc } from "firebase/firestore";
+import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Ticket, TicketPriority, TicketStatus, AuditEntry } from "@/lib/data";
 import { useData } from "@/components/DataProvider";
@@ -303,12 +303,10 @@ export default function TicketsPage() {
   }
 
   function handleSaveTicket(updated: Ticket) {
-    // Stamp manualAgent so the escalation checker never overrides a human assignment
+    // Stamp manualAgent:true so the escalation checker and automation engine
+    // never override an agent assignment that a human explicitly made
     const stamped: Ticket = { ...updated, manualAgent: true };
     setTickets(prev => prev.map(t => t.id === stamped.id ? stamped : t));
-    // Belt-and-suspenders: write directly to Firestore so the change
-    // persists immediately, independent of syncDocs diff timing
-    setDoc(doc(db, "tickets", stamped.id), stamped).catch(console.error);
   }
 
   function handleSubmit(e: React.FormEvent) {
