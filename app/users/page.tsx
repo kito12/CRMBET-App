@@ -291,69 +291,69 @@ export default function UsersPage() {
       </div>
 
       {/* Active users grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-8">
-        {filtered.map(agent => (
-          <div key={agent.uid}
-            onClick={() => { setSelectedAgent(agent); setDeleteConfirm(false); }}
-            className="rounded-2xl p-5 transition-all duration-200 hover:-translate-y-0.5 cursor-pointer group relative"
-            style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}
-            onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 16px 60px 0 rgba(26,28,28,0.10)")}
-            onMouseLeave={e => (e.currentTarget.style.boxShadow = "0 8px 40px 0 rgba(26,28,28,0.06)")}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-8 items-stretch">
+        {filtered.map(agent => {
+          const perf = agentPerf.find(ap => ap.uid === agent.uid);
+          const openCount = perf?.open ?? 0;
+          const isSelf = agent.uid === currentUser?.uid;
+          return (
+            <div key={agent.uid}
+              onClick={() => { setSelectedAgent(agent); setDeleteConfirm(false); }}
+              className="rounded-2xl p-5 transition-all duration-200 hover:-translate-y-0.5 cursor-pointer group relative flex flex-col"
+              style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}
+              onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 16px 60px 0 rgba(26,28,28,0.10)")}
+              onMouseLeave={e => (e.currentTarget.style.boxShadow = "0 8px 40px 0 rgba(26,28,28,0.06)")}>
 
-            {/* Admin delete button — top-right, only visible on hover */}
-            {isAdmin && agent.uid !== currentUser?.uid && (
-              <button
-                onClick={e => {
-                  e.stopPropagation();
-                  setSelectedAgent(agent);
-                  setDeleteConfirm(true);
-                }}
-                title="Remove agent"
-                className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100">
-                <Trash2 size={13} />
-              </button>
-            )}
-
-            <div className="relative w-12 h-12 mb-4">
-              {agent.photo ? (
-                <img src={agent.photo} alt={agent.name} className="w-12 h-12 rounded-2xl object-cover" />
-              ) : (
-                <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${getGradient(agent.email)} flex items-center justify-center text-white text-sm font-semibold`}>
-                  {agent.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
-                </div>
+              {/* Admin delete button — top-right, only visible on hover */}
+              {isAdmin && !isSelf && (
+                <button
+                  onClick={e => { e.stopPropagation(); setSelectedAgent(agent); setDeleteConfirm(true); }}
+                  title="Remove agent"
+                  className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100">
+                  <Trash2 size={13} />
+                </button>
               )}
-              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 bg-emerald-400"
-                style={{ borderColor: "var(--surface-lowest)" }} />
-            </div>
 
-            <h3 className="text-sm font-semibold tracking-tight mb-1" style={{ color: "var(--on-surface)" }}>{agent.name}</h3>
-
-            {/* Role — dropdown for admins, badge for others */}
-            {isAdmin && agent.uid !== currentUser?.uid ? (
-              <div className="relative inline-block mb-3" onClick={e => e.stopPropagation()}>
-                <select
-                  value={agent.role}
-                  disabled={roleUpdating === agent.uid}
-                  onChange={e => changeRole(agent.uid, e.target.value as "admin" | "agent")}
-                  className={`appearance-none pl-2.5 pr-7 py-0.5 rounded-full text-xs font-medium cursor-pointer outline-none transition-opacity ${roleColor[agent.role]} ${roleUpdating === agent.uid ? "opacity-50" : ""}`}>
-                  <option value="agent">Support Agent</option>
-                  <option value="admin">Administrator</option>
-                </select>
-                <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
+              {/* Avatar */}
+              <div className="relative w-12 h-12 mb-4 flex-shrink-0">
+                {agent.photo ? (
+                  <img src={agent.photo} alt={agent.name} className="w-12 h-12 rounded-2xl object-cover" />
+                ) : (
+                  <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${getGradient(agent.email)} flex items-center justify-center text-white text-sm font-semibold`}>
+                    {agent.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 bg-emerald-400"
+                  style={{ borderColor: "var(--surface-lowest)" }} />
               </div>
-            ) : (
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mb-3 ${roleColor[agent.role]}`}>
+
+              {/* Name */}
+              <h3 className="text-sm font-semibold tracking-tight mb-1 truncate pr-2" style={{ color: "var(--on-surface)" }}>{agent.name}</h3>
+
+              {/* Role — always a consistent badge; change role is in the profile modal */}
+              <span className={`inline-flex items-center self-start px-2 py-0.5 rounded-full text-xs font-medium mb-2 ${roleColor[agent.role]}`}>
                 {agent.role === "admin" ? "Administrator" : "Support Agent"}
               </span>
-            )}
 
-            <p className="text-xs truncate" style={{ color: "var(--on-surface-variant)" }}>{agent.email}</p>
+              {/* Email */}
+              <p className="text-xs truncate mb-3" style={{ color: "var(--on-surface-variant)" }}>{agent.email}</p>
 
-            {agent.uid === currentUser?.uid && (
-              <span className="mt-2 inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 text-purple-600">You</span>
-            )}
-          </div>
-        ))}
+              {/* Spacer — pushes ticket count to bottom */}
+              <div className="flex-1" />
+
+              {/* Bottom row — always rendered, keeps all cards the same height */}
+              <div className="flex items-center justify-between pt-3 mt-1"
+                style={{ borderTop: "1px solid rgba(148,163,184,0.12)" }}>
+                <span className={`text-xs font-medium ${openCount > 0 ? "text-amber-500" : "text-emerald-500"}`}>
+                  {openCount} open {openCount === 1 ? "ticket" : "tickets"}
+                </span>
+                {isSelf && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 text-purple-600">You</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
 
         {filtered.length === 0 && (
           <div className="col-span-4 py-16 text-center text-sm" style={{ color: "var(--on-surface-variant)" }}>
