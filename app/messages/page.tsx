@@ -2,9 +2,9 @@
 
 import { useState, useRef, useEffect } from "react";
 import { MessageSquare, Send, Hash, AtSign, Search, ArrowLeft } from "lucide-react";
-import { tickets } from "@/lib/data";
 import type { Ticket } from "@/lib/data";
 import { StatusPill, PriorityPill } from "@/components/ui/StatusPill";
+import { useData } from "@/components/DataProvider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -108,6 +108,7 @@ const seedUnread: Record<string, number> = { sarah: 1, yuki: 1 };
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function TicketCard({ ticketId }: { ticketId: string }) {
+  const { tickets } = useData();
   const ticket = tickets.find(t => t.id === ticketId);
   if (!ticket) return <span className="font-semibold text-purple-400">#{ticketId}</span>;
   return (
@@ -149,6 +150,7 @@ function RenderParts({ parts, isMe }: { parts: Part[]; isMe: boolean }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function MessagesPage() {
+  const { tickets } = useData();
   const [selectedId, setSelectedId]       = useState("sarah");
   const [mobileView, setMobileView]       = useState<"list" | "chat">("list");
   const [conversations, setConversations] = useState<Conversations>(seedConversations);

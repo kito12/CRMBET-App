@@ -78,6 +78,48 @@ body {
 /* Status dot border */
 .dark [class~="border-white"] { border-color: var(--surface-lowest) !important; }
 
+/* ── bg-white → dark surface (biggest gap) ───────────────────────────────── */
+.dark [class~="bg-white"]            { background-color: var(--surface-lowest) !important; }
+.dark [class~="hover:bg-white"]:hover{ background-color: var(--surface-low)    !important; }
+
+/* ── Purple text variants (ticket IDs, active links, pills) ──────────────── */
+.dark [class~="text-purple-600"] { color: #c084fc !important; }
+.dark [class~="text-purple-500"] { color: #a78bfa !important; }
+.dark [class~="text-purple-400"] { color: #c084fc !important; }
+
+/* ── Additional semantic text colours ────────────────────────────────────── */
+.dark [class~="text-emerald-500"] { color: #34d399 !important; }
+.dark [class~="text-emerald-400"] { color: #4ade80 !important; }
+.dark [class~="text-red-500"]     { color: #f87171 !important; }
+.dark [class~="text-red-400"]     { color: #f87171 !important; }
+.dark [class~="text-amber-500"]   { color: #fbbf24 !important; }
+.dark [class~="text-amber-400"]   { color: #fbbf24 !important; }
+.dark [class~="text-blue-500"]    { color: #60a5fa !important; }
+.dark [class~="text-slate-400"]   { color: #94a3b8 !important; }
+.dark [class~="text-slate-300"]   { color: #cbd5e1 !important; }
+
+/* ── *-100 badge / hover backgrounds ─────────────────────────────────────── */
+.dark [class~="bg-purple-100"] { background-color: rgba(113,49,214,0.22) !important; }
+.dark [class~="bg-amber-100"]  { background-color: rgba(245,158,11,0.22) !important; }
+.dark [class~="bg-red-100"]    { background-color: rgba(239,68,68,0.22)  !important; }
+.dark [class~="bg-blue-100"]   { background-color: rgba(59,130,246,0.22) !important; }
+.dark [class~="bg-emerald-100"]{ background-color: rgba(16,185,129,0.22) !important; }
+
+/* ── Toggle track & misc form backgrounds ────────────────────────────────── */
+.dark [class~="bg-slate-300"]         { background-color: rgba(148,163,184,0.28) !important; }
+.dark [class~="hover:bg-purple-50"]:hover { background-color: rgba(113,49,214,0.14) !important; }
+.dark [class~="hover:bg-emerald-50"]:hover{ background-color: rgba(16,185,129,0.14) !important; }
+.dark [class~="hover:bg-amber-50"]:hover  { background-color: rgba(245,158,11,0.14) !important; }
+.dark [class~="hover:bg-red-50"]:hover    { background-color: rgba(239,68,68,0.14)  !important; }
+.dark [class~="hover:bg-blue-50"]:hover   { background-color: rgba(59,130,246,0.14) !important; }
+
+/* ── Inputs & textareas inside white containers ──────────────────────────── */
+.dark input:not([class~="text-white"]),
+.dark textarea:not([class~="text-white"]),
+.dark select:not([class~="text-white"]) {
+  color: var(--on-surface);
+}
+
 /* Placeholders */
 .dark ::placeholder { color: var(--on-surface-variant); opacity: 0.7; }
 
