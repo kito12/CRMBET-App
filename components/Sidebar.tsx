@@ -201,9 +201,13 @@ export default function Sidebar() {
           </div>
           {/* Toggle switch */}
           <button onClick={toggle}
-            className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${theme === "dark" ? "bg-purple-600" : "bg-slate-300"}`}>
-            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200
-              ${theme === "dark" ? "translate-x-5" : "translate-x-0.5"}`} />
+            className="relative w-11 h-6 rounded-full transition-colors duration-200"
+            style={{ backgroundColor: theme === "dark" ? "#7131d6" : "#cbd5e1" }}>
+            <span
+              className={`absolute top-0.5 w-5 h-5 rounded-full shadow-md transition-transform duration-200
+                ${theme === "dark" ? "translate-x-5" : "translate-x-0.5"}`}
+              style={{ backgroundColor: "#ffffff" }}
+            />
           </button>
         </div>
 
