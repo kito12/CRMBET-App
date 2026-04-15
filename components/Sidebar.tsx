@@ -136,6 +136,13 @@ export default function Sidebar() {
           </div>
           <span className="text-[10px] font-medium">Alerts</span>
         </button>
+
+        {/* Theme toggle for mobile */}
+        <button onClick={toggle}
+          className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl text-[#48484a]">
+          {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
+          <span className="text-[10px] font-medium">{theme === "dark" ? "Light" : "Dark"}</span>
+        </button>
       </nav>
 
       {/* Notification panel */}
