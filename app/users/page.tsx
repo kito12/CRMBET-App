@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import {
   Search, Users, Clock, Plus, X, Mail, Shield, UserCircle, Trash2,
   ChevronDown, TrendingUp, CheckCircle2, Target, AlertCircle,
-  Calendar, Hash, ExternalLink, AlertTriangle,
+  Calendar, Hash, ExternalLink, AlertTriangle, Copy, Link2,
 } from "lucide-react";
 import { collection, onSnapshot, addDoc, deleteDoc, doc, query, orderBy, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -76,6 +76,8 @@ export default function UsersPage() {
   const [inviteEmail,  setInviteEmail]  = useState("");
   const [inviteError,  setInviteError]  = useState("");
   const [inviting,     setInviting]     = useState(false);
+  const [inviteResult, setInviteResult] = useState<{ email: string; appUrl: string; emailSent: boolean } | null>(null);
+  const [copied,       setCopied]       = useState(false);
   const [perfView,     setPerfView]     = useState(false);
 
   // Agent profile modal
@@ -130,14 +132,37 @@ export default function UsersPage() {
         invitedBy: currentUser?.email ?? "admin",
         createdAt: new Date().toISOString(),
       });
+
+      // Try to send the invite email via Resend
+      const appUrl = window.location.origin;
+      let emailSent = false;
+      try {
+        const res = await fetch("/api/send-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "agent_invite",
+            to: email,
+            invitedBy: currentUser?.name ?? currentUser?.email ?? "Admin",
+            appUrl,
+          }),
+        });
+        emailSent = res.ok;
+      } catch { /* email failed — show manual share */ }
+
+      setInviteResult({ email, appUrl, emailSent });
       setInviteEmail("");
       setInviteError("");
-      setInviteOpen(false);
     } catch {
-      setInviteError("Failed to send invite. Try again.");
+      setInviteError("Failed to create invite. Try again.");
     } finally {
       setInviting(false);
     }
+  }
+
+  function copyInviteMessage(email: string, appUrl: string) {
+    const msg = `Hi! You've been invited to join DeskHive CRM as an agent.\n\nTo get started:\n1. Visit: ${appUrl}\n2. Click "Sign in with Google"\n3. Use this email: ${email}\n\nYou'll have immediate access once you sign in.`;
+    navigator.clipboard.writeText(msg).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   }
 
   async function removeInvite(id: string) {
@@ -511,49 +536,105 @@ export default function UsersPage() {
       {/* Invite modal */}
       {inviteOpen && (
         <>
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" onClick={() => setInviteOpen(false)} />
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" onClick={() => { setInviteOpen(false); setInviteResult(null); setInviteEmail(""); setInviteError(""); }} />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="w-full max-w-md rounded-2xl p-7 relative"
               style={{ background: "var(--surface-lowest)", boxShadow: "0 24px 80px rgba(0,0,0,0.2)" }}>
-              <button onClick={() => setInviteOpen(false)}
+              <button onClick={() => { setInviteOpen(false); setInviteResult(null); setInviteEmail(""); setInviteError(""); }}
                 className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-xl transition-colors"
                 style={{ color: "var(--on-surface-variant)", background: "var(--surface-low)" }}>
                 <X size={15} />
               </button>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center">
-                  <Plus size={16} className="text-white" />
-                </div>
-                <div>
-                  <h2 className="text-base font-semibold" style={{ color: "var(--on-surface)" }}>Invite Agent</h2>
-                  <p className="text-xs" style={{ color: "var(--on-surface-variant)" }}>They'll sign in with their Google account</p>
-                </div>
-              </div>
-              <form onSubmit={sendInvite} className="flex flex-col gap-4">
-                <div>
-                  <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--on-surface-variant)" }}>Gmail address</label>
-                  <input type="email" placeholder="agent@gmail.com" value={inviteEmail}
-                    onChange={e => { setInviteEmail(e.target.value); setInviteError(""); }}
-                    autoFocus required
-                    className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-300 transition-all"
-                    style={{ background: "var(--surface-low)", color: "var(--on-surface)" }} />
-                  {inviteError && <p className="text-xs text-red-500 mt-1.5">{inviteError}</p>}
-                </div>
-                <p className="text-xs px-3 py-2 rounded-lg" style={{ background: "rgba(113,49,214,0.07)", color: "var(--on-surface-variant)" }}>
-                  Once invited, the agent visits the app and signs in with this Google account. They'll automatically get access.
-                </p>
-                <div className="flex gap-3 pt-1">
-                  <button type="button" onClick={() => setInviteOpen(false)}
-                    className="flex-1 py-2.5 rounded-xl text-sm font-medium"
-                    style={{ background: "var(--surface-low)", color: "var(--on-surface-variant)" }}>
-                    Cancel
+
+              {/* ── Step 1: email form ── */}
+              {!inviteResult ? (
+                <>
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center">
+                      <Plus size={16} className="text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-semibold" style={{ color: "var(--on-surface)" }}>Invite Agent</h2>
+                      <p className="text-xs" style={{ color: "var(--on-surface-variant)" }}>They'll sign in with their Google account</p>
+                    </div>
+                  </div>
+                  <form onSubmit={sendInvite} className="flex flex-col gap-4">
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--on-surface-variant)" }}>Gmail address</label>
+                      <input type="email" placeholder="agent@gmail.com" value={inviteEmail}
+                        onChange={e => { setInviteEmail(e.target.value); setInviteError(""); }}
+                        autoFocus required
+                        className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-300 transition-all"
+                        style={{ background: "var(--surface-low)", color: "var(--on-surface)" }} />
+                      {inviteError && <p className="text-xs text-red-500 mt-1.5">{inviteError}</p>}
+                    </div>
+                    <div className="flex gap-3 pt-1">
+                      <button type="button" onClick={() => setInviteOpen(false)}
+                        className="flex-1 py-2.5 rounded-xl text-sm font-medium"
+                        style={{ background: "var(--surface-low)", color: "var(--on-surface-variant)" }}>
+                        Cancel
+                      </button>
+                      <button type="submit" disabled={inviting || !inviteEmail.trim()}
+                        className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white gradient-primary hover:opacity-90 transition-opacity disabled:opacity-50">
+                        {inviting ? "Inviting…" : "Send Invite"}
+                      </button>
+                    </div>
+                  </form>
+                </>
+              ) : (
+                /* ── Step 2: result + share ── */
+                <div className="flex flex-col gap-5">
+                  {/* Status */}
+                  <div className={`flex items-start gap-3 p-4 rounded-xl ${inviteResult.emailSent ? "bg-emerald-50" : "bg-amber-50"}`}>
+                    {inviteResult.emailSent ? (
+                      <CheckCircle2 size={18} className="text-emerald-500 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertTriangle size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                    )}
+                    <div>
+                      <p className={`text-sm font-semibold ${inviteResult.emailSent ? "text-emerald-700" : "text-amber-700"}`}>
+                        {inviteResult.emailSent ? "Invite email sent!" : "Invite created — email not configured"}
+                      </p>
+                      <p className={`text-xs mt-0.5 ${inviteResult.emailSent ? "text-emerald-600" : "text-amber-600"}`}>
+                        {inviteResult.emailSent
+                          ? `An invite email was sent to ${inviteResult.email}`
+                          : "Add your RESEND_API_KEY to .env.local to enable auto-emails. Share the invite manually below."}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Share manually */}
+                  <div>
+                    <p className="text-xs font-semibold mb-2" style={{ color: "var(--on-surface-variant)" }}>SHARE INVITE MANUALLY</p>
+                    <div className="flex flex-col gap-2">
+                      {/* Copy message */}
+                      <button onClick={() => copyInviteMessage(inviteResult.email, inviteResult.appUrl)}
+                        className="flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-medium transition-all text-left"
+                        style={{ background: "var(--surface-low)", color: "var(--on-surface)" }}>
+                        {copied ? <CheckCircle2 size={15} className="text-emerald-500 flex-shrink-0" /> : <Copy size={15} className="flex-shrink-0" style={{ color: "var(--on-surface-variant)" }} />}
+                        <span>{copied ? "Copied!" : "Copy invite message"}</span>
+                      </button>
+                      {/* Open in mail */}
+                      <a href={`mailto:${inviteResult.email}?subject=You've been invited to DeskHive CRM&body=${encodeURIComponent(`Hi!\n\nYou've been invited to join DeskHive CRM as an agent.\n\nTo get started:\n1. Visit: ${inviteResult.appUrl}\n2. Click "Sign in with Google"\n3. Use this email: ${inviteResult.email}\n\nYou'll have immediate access once you sign in.`)}`}
+                        className="flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-medium transition-all"
+                        style={{ background: "var(--surface-low)", color: "var(--on-surface)" }}>
+                        <Mail size={15} className="flex-shrink-0" style={{ color: "var(--on-surface-variant)" }} />
+                        <span>Open in Mail app</span>
+                      </a>
+                      {/* Copy app URL */}
+                      <div className="flex items-center gap-2 px-4 py-3 rounded-xl" style={{ background: "var(--surface-low)" }}>
+                        <Link2 size={14} className="flex-shrink-0" style={{ color: "var(--on-surface-variant)" }} />
+                        <span className="text-xs font-mono truncate flex-1" style={{ color: "var(--on-surface-variant)" }}>{inviteResult.appUrl}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button onClick={() => { setInviteOpen(false); setInviteResult(null); }}
+                    className="w-full py-2.5 rounded-xl text-sm font-semibold text-white gradient-primary hover:opacity-90 transition-opacity">
+                    Done
                   </button>
-                  <button type="submit" disabled={inviting || !inviteEmail.trim()}
-                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white gradient-primary hover:opacity-90 transition-opacity disabled:opacity-50">
-                    {inviting ? "Inviting…" : "Send Invite"}
-                  </button>
                 </div>
-              </form>
+              )}
             </div>
           </div>
         </>

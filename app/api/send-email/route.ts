@@ -113,6 +113,29 @@ function agentReplyHtml(name: string, ticketId: string, message: string) {
   `);
 }
 
+function agentInviteHtml(invitedBy: string, appUrl: string, agentEmail: string) {
+  return baseHtml(`
+    <h2 style="margin:0 0 16px;font-size:22px;font-weight:700;color:#1a1c1c;letter-spacing:-0.4px">
+      You've been invited to DeskHive
+    </h2>
+    <p style="margin:0 0 20px;font-size:14px;color:#48484a;line-height:1.7">
+      <strong>${escHtml(invitedBy)}</strong> has invited you to join DeskHive Support CRM as an agent.
+    </p>
+    <div style="background:#f8f7ff;border-radius:12px;padding:18px 22px;margin-bottom:22px">
+      <p style="margin:0 0 12px;font-size:13px;font-weight:600;color:#1a1c1c;">To get started:</p>
+      <p style="margin:0 0 8px;font-size:14px;color:#48484a">1. Visit the app:</p>
+      <a href="${escHtml(appUrl)}" style="display:inline-block;background:linear-gradient(135deg,#7131d6,#0058bf);
+         color:#ffffff;text-decoration:none;padding:10px 20px;border-radius:10px;
+         font-size:14px;font-weight:600;margin-bottom:12px">${escHtml(appUrl)}</a>
+      <p style="margin:8px 0 4px;font-size:14px;color:#48484a">2. Click <strong>"Sign in with Google"</strong></p>
+      <p style="margin:4px 0 0;font-size:14px;color:#48484a">3. Sign in using: <strong>${escHtml(agentEmail)}</strong></p>
+    </div>
+    <p style="margin:0;font-size:13px;color:#48484a;line-height:1.7">
+      You'll have immediate access once you sign in. If you have any issues, contact your admin.
+    </p>
+  `);
+}
+
 function escHtml(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
@@ -128,10 +151,10 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { type, to, ticketId, customerName, agentMessage, issueType } = await req.json();
+    const { type, to, ticketId, customerName, agentMessage, issueType, invitedBy, appUrl } = await req.json();
 
-    if (!to || !ticketId || !customerName) {
-      return NextResponse.json({ error: "Missing required fields: to, ticketId, customerName" }, { status: 400 });
+    if (!to) {
+      return NextResponse.json({ error: "Missing required field: to" }, { status: 400 });
     }
 
     let subject: string;
@@ -149,6 +172,10 @@ export async function POST(req: NextRequest) {
       case "agent_reply":
         subject = `Message from DeskHive Support [${ticketId}]`;
         html = agentReplyHtml(customerName, ticketId, agentMessage ?? "");
+        break;
+      case "agent_invite":
+        subject = `You've been invited to DeskHive CRM`;
+        html = agentInviteHtml(invitedBy ?? "Your admin", appUrl ?? "", to);
         break;
       default:
         return NextResponse.json({ error: "Unknown email type" }, { status: 400 });
