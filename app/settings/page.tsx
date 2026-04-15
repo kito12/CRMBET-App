@@ -5,6 +5,8 @@ import {
   User, Bell, Monitor, Info, Save, Zap, ArrowUpCircle,
   MessageSquare, Plus, Pencil, Trash2, Check, X, ChevronDown, Link2, Copy,
 } from "lucide-react";
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { useData } from "@/components/DataProvider";
 import { useAuth } from "@/components/AuthProvider";
 import type { CannedResponse } from "@/lib/data";
@@ -28,7 +30,6 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
-const AGENTS = ["Unassigned", "Sarah K.", "James R.", "Tom H.", "Mia S.", "Daniel P.", "Omar K.", "Yuki T."];
 const CATEGORIES = ["Withdrawal", "Bet Settlement", "Account Access", "Bonus Dispute", "Live Betting", "General", "Other"];
 
 const blankCanned = (): Omit<CannedResponse, "id"> => ({ title: "", category: "General", body: "" });
@@ -50,6 +51,15 @@ export default function SettingsPage() {
   const [crm, setCrm] = useState({
     name: "BetCRM", slaTarget: "10", headOfficeName: "Head Office CRM", defaultAgent: "Unassigned",
   });
+
+  /* ── Live agents from Firestore ── */
+  const [agentList, setAgentList] = useState<string[]>(["Unassigned"]);
+  useEffect(() => {
+    return onSnapshot(collection(db, "users"), snap => {
+      const names = snap.docs.map(d => d.data().name as string).filter(Boolean).sort();
+      setAgentList(["Unassigned", ...names]);
+    });
+  }, []);
 
   /* ── Public form URL ── */
   const [formUrl, setFormUrl] = useState("");
@@ -217,7 +227,7 @@ export default function SettingsPage() {
             <label className={labelClass}>Default Assigned Agent</label>
             <select value={crm.defaultAgent} onChange={e => setCrm({ ...crm, defaultAgent: e.target.value })}
               className={inputClass} style={{ background: "var(--surface-low)" }}>
-              {AGENTS.map(a => <option key={a}>{a}</option>)}
+              {agentList.map(a => <option key={a}>{a}</option>)}
             </select>
           </div>
         </div>
@@ -265,7 +275,7 @@ export default function SettingsPage() {
               onChange={e => setEscalationSettings(s => ({ ...s, tier2Agent: e.target.value }))}
               className={inputClass} style={{ background: "var(--surface-low)" }}
             >
-              {AGENTS.filter(a => a !== "Unassigned").map(a => <option key={a}>{a}</option>)}
+              {agentList.filter(a => a !== "Unassigned").map(a => <option key={a}>{a}</option>)}
             </select>
           </div>
           <div className="sm:col-span-2">

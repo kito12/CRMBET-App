@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import {
-  X, Hash, ExternalLink, Clock, MessageSquare, Send,
+  X, Hash, ExternalLink, Clock, MessageSquare, Send, Mail,
   ArrowUpCircle, ChevronDown, Smartphone, FileText, Check,
   RefreshCw, UserCheck, ArrowUpDown, Plus, Activity,
 } from "lucide-react";
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import type { Ticket, TicketStatus, TicketPriority, Note, AuditEntry, AuditAction } from "@/lib/data";
 import { StatusPill, PriorityPill } from "@/components/ui/StatusPill";
 import { InputField, SelectField, TextareaField } from "@/components/ui/FormField";
@@ -16,8 +18,6 @@ interface Props {
   onClose: () => void;
   onSave: (updated: Ticket) => void;
 }
-
-const agents = ["Unassigned", "Sarah K.", "James R.", "Tom H.", "Mia S.", "Daniel P.", "Omar K.", "Yuki T."];
 
 function parseCreated(created: string): Date | null {
   try {
@@ -83,6 +83,16 @@ function auditLabel(entry: AuditEntry): string {
   }
 }
 
+async function callSendEmail(payload: Record<string, string>) {
+  try {
+    await fetch("/api/send-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch { /* non-blocking */ }
+}
+
 export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
   const { cannedResponses, escalationSettings, addNotification } = useData();
 
@@ -97,6 +107,24 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
   const templateRef = useRef<HTMLDivElement>(null);
   const replyRef    = useRef<HTMLTextAreaElement>(null);
 
+  // Live agents from Firestore
+  const [agentList, setAgentList] = useState<string[]>(["Unassigned"]);
+  // Email state
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailSent,    setEmailSent]    = useState(false);
+  const [emailError,   setEmailError]   = useState("");
+
+  // ── Firestore: live agent list ─────────────────────────────────────────────
+  useEffect(() => {
+    return onSnapshot(collection(db, "users"), snap => {
+      const names = snap.docs
+        .map(d => d.data().name as string)
+        .filter(Boolean)
+        .sort();
+      setAgentList(["Unassigned", ...names]);
+    });
+  }, []);
+
   useEffect(() => {
     if (ticket) {
       setForm({ ...ticket });
@@ -105,6 +133,8 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
       setReplyText("");
       setShowTemplates(false);
       setBottomTab("notes");
+      setEmailError("");
+      setEmailSent(false);
     }
   }, [ticket]);
 
@@ -152,6 +182,17 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
         : (form.auditLog ?? []),
     };
     onSave(updated);
+
+    // Send resolution email if status just changed to Resolved and customer has email
+    if (form.status === "Resolved" && ticket.status !== "Resolved" && form.email) {
+      callSendEmail({
+        type: "ticket_resolved",
+        to: form.email,
+        ticketId: form.id,
+        customerName: form.customer,
+      });
+    }
+
     onClose();
   }
 
@@ -205,6 +246,51 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
     setForm(updated);
     onSave(updated);
     setReplyText("");
+  }
+
+  // ── Email reply ────────────────────────────────────────────────────────────
+  async function sendReplyAsEmail() {
+    if (!replyText.trim() || !form || !form.email) return;
+    setEmailSending(true);
+    setEmailError("");
+    try {
+      // Log as note first
+      const ts = nowLabel();
+      const note: Note = { id: Date.now().toString(), author: "You (email reply)", text: replyText.trim(), timestamp: ts };
+      const auditEntry: AuditEntry = { id: `a-email-${Date.now()}`, action: "note_added", author: "You", timestamp: ts };
+      const updated: Ticket = {
+        ...form,
+        notes: [...(form.notes ?? []), note],
+        auditLog: [auditEntry, ...(form.auditLog ?? [])],
+      };
+      setForm(updated);
+      onSave(updated);
+
+      const res = await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "agent_reply",
+          to: form.email,
+          ticketId: form.id,
+          customerName: form.customer,
+          agentMessage: replyText.trim(),
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        setEmailError(data.error ?? "Failed to send email");
+      } else {
+        setEmailSent(true);
+        setReplyText("");
+        setTimeout(() => setEmailSent(false), 3000);
+      }
+    } catch {
+      setEmailError("Network error — email not sent");
+    } finally {
+      setEmailSending(false);
+    }
   }
 
   // ── Manual escalation ──────────────────────────────────────────────────────
@@ -312,7 +398,7 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
             <div className="w-px h-10 bg-[rgba(204,195,215,0.2)]" />
             <div className="flex-1">
               <SelectField label="Agent" value={form.agent} onChange={e => update("agent", e.target.value)}>
-                {agents.map(a => <option key={a}>{a}</option>)}
+                {agentList.map(a => <option key={a}>{a}</option>)}
               </SelectField>
             </div>
           </div>
@@ -409,12 +495,25 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
               style={{ background: "var(--surface-low)" }}
               onFocus={e => (e.target.style.background = "var(--surface-lowest)")}
               onBlur={e => (e.target.style.background = "var(--surface-low)")} />
+
             {replyText.trim() && (
-              <div className="flex items-center gap-2 mt-2 justify-end">
+              <div className="flex items-center gap-2 mt-2 justify-end flex-wrap">
                 <button onClick={sendReplyAsNote}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#48484a] hover:bg-[#f3f3f3] transition-colors">
                   <MessageSquare size={12} /> Log as Note
                 </button>
+                {form.email && (
+                  <button onClick={sendReplyAsEmail} disabled={emailSending}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-60 ${
+                      emailSent
+                        ? "text-emerald-700 bg-emerald-50"
+                        : "text-blue-700 hover:bg-blue-50"
+                    }`}
+                    style={{ background: emailSent ? undefined : "rgba(0,88,191,0.08)" }}>
+                    {emailSent ? <Check size={12} /> : <Mail size={12} />}
+                    {emailSending ? "Sending…" : emailSent ? "Email Sent" : "Send Email"}
+                  </button>
+                )}
                 {form.phone && (
                   <button onClick={openWhatsApp}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-700 hover:bg-emerald-50 transition-colors"
@@ -423,6 +522,9 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
                   </button>
                 )}
               </div>
+            )}
+            {emailError && (
+              <p className="text-xs text-red-500 mt-1.5 text-right">{emailError}</p>
             )}
           </div>
 

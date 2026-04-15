@@ -1,12 +1,50 @@
 "use client";
 
 import { useData } from "@/components/DataProvider";
-import { Ticket, CheckCircle2, AlertCircle, TrendingUp, Users, Clock } from "lucide-react";
+import { Ticket, CheckCircle2, AlertCircle, TrendingUp, Users, Clock, CalendarDays } from "lucide-react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function pct(part: number, total: number) {
   return total === 0 ? 0 : Math.round((part / total) * 100);
+}
+
+function parseCreatedToDate(created: string): Date | null {
+  try {
+    const m = created.match(/^(\w{3})\s+(\d+),\s+(\d{2}):(\d{2})$/);
+    if (!m) return null;
+    const months: Record<string, number> = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+    const d = new Date(new Date().getFullYear(), months[m[1]], +m[2], +m[3], +m[4]);
+    if (d > new Date()) d.setFullYear(d.getFullYear() - 1);
+    return d;
+  } catch { return null; }
+}
+
+function isSameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+// Weekly volume bar chart
+function WeeklyChart({ days }: { days: { label: string; count: number; isToday: boolean }[] }) {
+  const max = Math.max(...days.map(d => d.count), 1);
+  return (
+    <div className="flex items-end gap-2 h-24 mt-4">
+      {days.map(d => (
+        <div key={d.label} className="flex-1 flex flex-col items-center gap-1.5">
+          <span className="text-xs font-semibold text-[#1a1c1c]">{d.count > 0 ? d.count : ""}</span>
+          <div className="w-full flex-1 flex items-end">
+            <div
+              className={`w-full rounded-t-lg transition-all duration-500 ${d.isToday ? "bg-purple-500" : "bg-purple-200"}`}
+              style={{ minHeight: d.count > 0 ? "6px" : "2px", height: `${(d.count / max) * 64}px` }}
+            />
+          </div>
+          <span className={`text-[10px] font-medium ${d.isToday ? "text-purple-600" : "text-[#48484a]"}`}>
+            {d.label}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 // Bar component for horizontal charts
@@ -85,6 +123,21 @@ export default function AnalyticsPage() {
   const onHold     = tickets.filter(t => t.status === "On Hold").length;
   const active     = open + inProgress;
   const resRate    = pct(resolved, total);
+  const escalated  = tickets.filter(t => t.escalated).length;
+
+  // ── Last 7 days volume ──
+  const today = new Date();
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - (6 - i));
+    const DAY_LABELS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    const count = tickets.filter(t => {
+      const td = parseCreatedToDate(t.created);
+      return td ? isSameDay(td, d) : false;
+    }).length;
+    return { label: i === 6 ? "Today" : DAY_LABELS[d.getDay()], count, isToday: i === 6 };
+  });
+  const thisWeekCount = weekDays.reduce((s, d) => s + d.count, 0);
 
   // ── Issue type breakdown ──
   const issueTypes = ["Withdrawal Issue", "Bet Settlement", "Account Access", "Bonus Dispute", "Live Betting"];
@@ -140,12 +193,13 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         {[
-          { icon: Ticket,       label: "TOTAL TICKETS",    value: total,          sub: "all time",              color: "text-purple-600",  bg: "bg-purple-50" },
-          { icon: AlertCircle,  label: "ACTIVE",           value: active,         sub: "open + in progress",    color: "text-amber-600",   bg: "bg-amber-50" },
-          { icon: CheckCircle2, label: "RESOLVED",         value: resolved,       sub: "tickets closed",        color: "text-emerald-600", bg: "bg-emerald-50" },
-          { icon: TrendingUp,   label: "RESOLUTION RATE",  value: `${resRate}%`,  sub: "resolved / total",      color: "text-blue-600",    bg: "bg-blue-50" },
+          { icon: Ticket,        label: "TOTAL TICKETS",   value: total,          sub: "all time",           color: "text-purple-600",  bg: "bg-purple-50" },
+          { icon: AlertCircle,   label: "ACTIVE",          value: active,         sub: "open + in progress", color: "text-amber-600",   bg: "bg-amber-50" },
+          { icon: CheckCircle2,  label: "RESOLVED",        value: resolved,       sub: "tickets closed",     color: "text-emerald-600", bg: "bg-emerald-50" },
+          { icon: TrendingUp,    label: "RESOLUTION RATE", value: `${resRate}%`,  sub: "resolved / total",   color: "text-blue-600",    bg: "bg-blue-50" },
+          { icon: CalendarDays,  label: "THIS WEEK",       value: thisWeekCount,  sub: "last 7 days",        color: "text-violet-600",  bg: "bg-violet-50" },
         ].map(({ icon: Icon, label, value, sub, color, bg }) => (
           <div key={label} className="rounded-2xl p-5" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
             <div className={`inline-flex p-2 rounded-lg ${bg} mb-3`}>
@@ -156,6 +210,48 @@ export default function AnalyticsPage() {
             <p className="text-xs text-[#48484a] mt-1">{sub}</p>
           </div>
         ))}
+      </div>
+
+      {/* Weekly volume + escalated */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div className="lg:col-span-2 rounded-2xl p-6" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
+          <p className="text-label-caps text-[#48484a] mb-1">Trend</p>
+          <h3 className="text-base font-semibold text-[#1a1c1c] tracking-tight">Ticket Volume — Last 7 Days</h3>
+          <WeeklyChart days={weekDays} />
+        </div>
+        <div className="rounded-2xl p-6" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
+          <p className="text-label-caps text-[#48484a] mb-1">Health</p>
+          <h3 className="text-base font-semibold text-[#1a1c1c] tracking-tight mb-5">SLA & Escalation</h3>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: "var(--surface-low)" }}>
+              <div>
+                <p className="text-xs font-semibold text-[#48484a] uppercase tracking-wide">SLA Breached</p>
+                <p className="text-xs text-[#48484a] mt-0.5">open tickets &gt; 30 min</p>
+              </div>
+              <span className="text-xl font-bold text-red-500">
+                {tickets.filter(t => {
+                  if (t.status === "Resolved" || t.status === "On Hold") return false;
+                  const d = parseCreatedToDate(t.created);
+                  return d ? (Date.now() - d.getTime()) / 60000 > 30 : false;
+                }).length}
+              </span>
+            </div>
+            <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: "var(--surface-low)" }}>
+              <div>
+                <p className="text-xs font-semibold text-[#48484a] uppercase tracking-wide">Escalated</p>
+                <p className="text-xs text-[#48484a] mt-0.5">auto + manual</p>
+              </div>
+              <span className="text-xl font-bold text-amber-500">{escalated}</span>
+            </div>
+            <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: "var(--surface-low)" }}>
+              <div>
+                <p className="text-xs font-semibold text-[#48484a] uppercase tracking-wide">On Hold</p>
+                <p className="text-xs text-[#48484a] mt-0.5">pending customer</p>
+              </div>
+              <span className="text-xl font-bold text-amber-600">{onHold}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Middle row: issue types + priority + status */}

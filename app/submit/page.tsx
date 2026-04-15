@@ -77,6 +77,21 @@ export default function SubmitPage() {
 
       setTicketId(newId);
       setSubmitted(true);
+
+      // Send confirmation email (non-blocking — don't fail submission if email fails)
+      if (form.email.trim()) {
+        fetch("/api/send-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "ticket_submitted",
+            to: form.email.trim(),
+            ticketId: newId,
+            customerName: form.name.trim(),
+            issueType: form.issue,
+          }),
+        }).catch(() => {}); // fire-and-forget
+      }
     } catch (err) {
       console.error("Submit failed:", err);
       setSubmitError("Something went wrong. Please try again.");
