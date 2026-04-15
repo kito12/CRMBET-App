@@ -139,8 +139,12 @@ export default function Sidebar() {
       </aside>
 
       {/* ── Mobile bottom nav (5 items max) ── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around px-2 py-2"
-        style={{ background: "var(--surface-lowest)", borderTop: "1px solid rgba(148,163,184,0.12)" }}>
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around px-2 pt-2"
+        style={{
+          background: "var(--surface-lowest)",
+          borderTop: "1px solid rgba(148,163,184,0.12)",
+          paddingBottom: "max(8px, env(safe-area-inset-bottom))",
+        }}>
 
         {/* Core nav items */}
         {mobileNavItems.map(({ href, icon: Icon, label }) => {
@@ -269,8 +273,8 @@ export default function Sidebar() {
           })}
         </div>
 
-        {/* Safe area spacer */}
-        <div className="h-6" />
+        {/* Safe area spacer for iPhone home bar */}
+        <div style={{ height: "max(24px, env(safe-area-inset-bottom))" }} />
       </div>
 
       {/* Notification panel */}

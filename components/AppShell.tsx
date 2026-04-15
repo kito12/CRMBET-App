@@ -47,7 +47,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Sidebar />
-      <main key={pathname} className="page-enter md:ml-16 min-h-screen p-4 md:p-8 pb-24 md:pb-8">
+      <main key={pathname} className="page-enter md:ml-16 min-h-screen p-4 md:p-8 pb-24 md:pb-8"
+        style={{ paddingTop: "max(1rem, calc(env(safe-area-inset-top) + 0.5rem))" }}>
         {children}
       </main>
       <PwaInstallBanner />

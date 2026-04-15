@@ -431,27 +431,35 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
 
           {/* Status + Priority + Agent */}
           <div className="flex items-center gap-3 mb-6 p-4 rounded-xl" style={{ background: "var(--surface-low)" }}>
+            {/* STATUS — invisible select over a pill display */}
             <div className="flex-1">
               <p className="text-label-caps text-[#48484a] mb-2">STATUS</p>
               <div className="relative">
-                <select value={form.status} onChange={e => update("status", e.target.value as TicketStatus)}
-                  className="w-full pl-3 pr-8 py-2 rounded-xl text-sm font-medium outline-none appearance-none cursor-pointer transition-all focus:ring-2 focus:ring-purple-200"
+                <div className="flex items-center justify-between px-3 py-2 rounded-xl pointer-events-none"
                   style={{ background: "var(--surface-lowest)" }}>
+                  <StatusPill status={form.status} />
+                  <ChevronDown size={11} className="opacity-40 flex-shrink-0 ml-1" />
+                </div>
+                <select value={form.status} onChange={e => update("status", e.target.value as TicketStatus)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                   {(["Open","In Progress","On Hold","Resolved"] as TicketStatus[]).map(s => <option key={s}>{s}</option>)}
                 </select>
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none"><StatusPill status={form.status} /></span>
               </div>
             </div>
             <div className="w-px h-10 bg-[rgba(204,195,215,0.2)]" />
+            {/* PRIORITY — same pattern */}
             <div className="flex-1">
               <p className="text-label-caps text-[#48484a] mb-2">PRIORITY</p>
               <div className="relative">
-                <select value={form.priority} onChange={e => update("priority", e.target.value as TicketPriority)}
-                  className="w-full pl-3 pr-8 py-2 rounded-xl text-sm font-medium outline-none appearance-none cursor-pointer transition-all focus:ring-2 focus:ring-purple-200"
+                <div className="flex items-center justify-between px-3 py-2 rounded-xl pointer-events-none"
                   style={{ background: "var(--surface-lowest)" }}>
+                  <PriorityPill priority={form.priority} />
+                  <ChevronDown size={11} className="opacity-40 flex-shrink-0 ml-1" />
+                </div>
+                <select value={form.priority} onChange={e => update("priority", e.target.value as TicketPriority)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                   {(["High","Medium","Low"] as TicketPriority[]).map(p => <option key={p}>{p}</option>)}
                 </select>
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none"><PriorityPill priority={form.priority} /></span>
               </div>
             </div>
             <div className="w-px h-10 bg-[rgba(204,195,215,0.2)]" />

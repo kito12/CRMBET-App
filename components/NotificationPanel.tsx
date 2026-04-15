@@ -67,6 +67,7 @@ export default function NotificationPanel({ open, onClose }: Props) {
           background: "var(--surface-lowest)",
           boxShadow: "-8px 0 48px rgba(26,28,28,0.14)",
           borderLeft: "1px solid rgba(204,195,215,0.15)",
+          paddingTop: "env(safe-area-inset-top)",
         }}
       >
         {/* Header */}
@@ -81,7 +82,7 @@ export default function NotificationPanel({ open, onClose }: Props) {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             {unreadCount > 0 && (
               <button onClick={markAllRead} title="Mark all read"
                 className="flex items-center gap-1.5 text-xs text-[#48484a] hover:text-purple-600 transition-colors px-2 py-1 rounded-lg hover:bg-purple-50">
@@ -90,13 +91,14 @@ export default function NotificationPanel({ open, onClose }: Props) {
             )}
             {notifications.length > 0 && (
               <button onClick={clearNotifications} title="Clear all"
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-[#48484a] hover:text-red-500 hover:bg-red-50 transition-colors">
-                <Trash2 size={13} />
+                className="w-10 h-10 flex items-center justify-center rounded-xl text-[#48484a] hover:text-red-500 hover:bg-red-50 transition-colors">
+                <Trash2 size={15} />
               </button>
             )}
+            {/* Large touch target for iOS */}
             <button onClick={onClose}
-              className="w-7 h-7 flex items-center justify-center rounded-lg text-[#48484a] hover:bg-[#f3f3f3] transition-colors">
-              <X size={15} />
+              className="w-10 h-10 flex items-center justify-center rounded-xl text-[#48484a] hover:bg-[#f3f3f3] transition-colors">
+              <X size={18} />
             </button>
           </div>
         </div>
