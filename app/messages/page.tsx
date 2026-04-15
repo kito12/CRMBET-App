@@ -118,6 +118,35 @@ function RenderParts({ parts, isMe }: { parts: Part[]; isMe: boolean }) {
   );
 }
 
+// ─── Notification sound (Web Audio API — no external files needed) ────────────
+
+function playPing() {
+  try {
+    type AudioCtxCtor = typeof AudioContext;
+    const Ctx: AudioCtxCtor =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext: AudioCtxCtor }).webkitAudioContext;
+    const ctx  = new Ctx();
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    // Soft descending "ding"
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.08);
+
+    gain.gain.setValueAtTime(0.28, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.4);
+    osc.onended = () => ctx.close();
+  } catch { /* AudioContext unavailable — silent fallback */ }
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function MessagesPage() {
@@ -135,8 +164,11 @@ export default function MessagesPage() {
   const [memberSearch, setMemberSearch] = useState("");
   const [sending,      setSending]      = useState(false);
 
-  const inputRef    = useRef<HTMLTextAreaElement>(null);
-  const messagesEnd = useRef<HTMLDivElement>(null);
+  const inputRef        = useRef<HTMLTextAreaElement>(null);
+  const messagesEnd     = useRef<HTMLDivElement>(null);
+  // Track previous counts so we don't ping on initial load
+  const prevMsgCountRef = useRef(-1);
+  const prevUnreadRef   = useRef(-1);
 
   // ── Load team members from Firestore users collection ─────────────────────
   useEffect(() => {
@@ -174,13 +206,21 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!selectedId || !currentUser) return;
     setMessages([]); // clear while loading
+    prevMsgCountRef.current = -1; // reset so first batch never triggers a ping
     const cid = convDocId(currentUser.uid, selectedId);
     const q = query(
       collection(db, "conversations", cid, "messages"),
       orderBy("createdAt", "asc")
     );
     const unsub = onSnapshot(q, snap => {
-      setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage)));
+      const newMessages = snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage));
+      // Play ping when a new message arrives from the other person
+      if (prevMsgCountRef.current >= 0 && newMessages.length > prevMsgCountRef.current) {
+        const latest = newMessages[newMessages.length - 1];
+        if (latest?.senderId !== currentUser.uid) playPing();
+      }
+      prevMsgCountRef.current = newMessages.length;
+      setMessages(newMessages);
     });
     // Mark this conversation as read
     updateDoc(doc(db, "conversations", cid), {
@@ -287,6 +327,14 @@ export default function MessagesPage() {
   const totalUnread = Object.values(convMeta).reduce((sum, c) =>
     sum + ((c.unread?.[currentUser?.uid ?? ""] as number) ?? 0), 0
   );
+
+  // ── Ping when unread count rises (covers background conversations) ─────────
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (prevUnreadRef.current < 0) { prevUnreadRef.current = totalUnread; return; }
+    if (totalUnread > prevUnreadRef.current) playPing();
+    prevUnreadRef.current = totalUnread;
+  }, [totalUnread]);
 
   function lastMsgPreview(uid: string) {
     const meta = convMeta[uid];
