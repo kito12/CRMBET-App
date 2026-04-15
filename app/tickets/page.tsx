@@ -4,11 +4,12 @@ import { useState, useEffect } from "react";
 import type { Ticket, TicketPriority, TicketStatus } from "@/lib/data";
 import { useData } from "@/components/DataProvider";
 import { StatusPill, PriorityPill } from "@/components/ui/StatusPill";
-import { Search, Plus, SlidersHorizontal, Link2, Download, ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
+import { Search, Plus, Link2, Download, ChevronLeft, ChevronRight, CheckCircle2, LayoutList, Columns } from "lucide-react";
 import CopyButton from "@/components/ui/CopyButton";
 import Modal from "@/components/ui/Modal";
 import { InputField, SelectField, TextareaField } from "@/components/ui/FormField";
 import TicketDetailModal from "@/components/tickets/TicketDetailModal";
+import KanbanBoard from "@/components/tickets/KanbanBoard";
 import { SkeletonTableRow } from "@/components/ui/Skeleton";
 
 const statusFilters = ["All", "Open", "In Progress", "Resolved", "On Hold"] as const;
@@ -48,13 +49,16 @@ export default function TicketsPage() {
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState<Partial<typeof emptyForm>>({});
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
-  const [page, setPage] = useState(1);
+  const [page, setPage]           = useState(1);
   const [agentView, setAgentView] = useState<AgentView>("All");
+  const [viewMode, setViewMode]   = useState<"table" | "board">("table");
 
-  // Pre-fill from ?clientId= query param
+  // Handle URL params: ?open=TKT-XXXX, ?new=1, ?clientId=CLT-XXXX
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params   = new URLSearchParams(window.location.search);
     const clientId = params.get("clientId");
+    const openId   = params.get("open");
+    const isNew    = params.get("new");
     if (clientId) {
       const match = customers.find(c => c.clientId === clientId);
       if (match) {
@@ -63,7 +67,17 @@ export default function TicketsPage() {
       }
       history.replaceState({}, "", "/tickets");
     }
-  }, []);
+    if (openId) {
+      const t = tickets.find(tk => tk.id === openId);
+      if (t) setSelectedTicket(t);
+      history.replaceState({}, "", "/tickets");
+    }
+    if (isNew) {
+      setModalOpen(true);
+      history.replaceState({}, "", "/tickets");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
 
   // Reset page when filter/search changes
   useEffect(() => { setPage(1); }, [search, activeFilter, agentView]);
@@ -157,9 +171,20 @@ export default function TicketsPage() {
           <h1 className="text-display text-[#1a1c1c]">Tickets</h1>
           <p className="text-sm text-[#48484a] mt-1">All customer support requests</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          {/* View toggle */}
+          <div className="flex items-center rounded-xl overflow-hidden" style={{ background: "var(--surface-low)" }}>
+            <button onClick={() => setViewMode("table")}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-all duration-150 ${viewMode === "table" ? "gradient-primary text-white" : "text-[#48484a] hover:text-[#1a1c1c]"}`}>
+              <LayoutList size={14} /> Table
+            </button>
+            <button onClick={() => setViewMode("board")}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-all duration-150 ${viewMode === "board" ? "gradient-primary text-white" : "text-[#48484a] hover:text-[#1a1c1c]"}`}>
+              <Columns size={14} /> Board
+            </button>
+          </div>
           <button onClick={exportCSV}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-[#48484a] transition-colors hover:bg-[#f3f3f3]"
+            className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-[#48484a] transition-colors hover:bg-[#f3f3f3]"
             style={{ background: "var(--surface-lowest)", border: "1px solid rgba(204,195,215,0.3)" }}>
             <Download size={14} /> Export CSV
           </button>
@@ -206,8 +231,19 @@ export default function TicketsPage() {
         </div>
       </div>
 
-      {/* Mobile card list */}
-      <div className="flex md:hidden flex-col gap-2 mb-6">
+      {/* ── Kanban Board ── */}
+      {viewMode === "board" && (
+        <KanbanBoard
+          tickets={filtered}
+          onUpdateStatus={(id, status) =>
+            setTickets(prev => prev.map(t => t.id === id ? { ...t, status } : t))
+          }
+          onSelect={setSelectedTicket}
+        />
+      )}
+
+      {/* Mobile card list — only shown in table mode */}
+      <div className={`flex md:hidden flex-col gap-2 mb-6 ${viewMode === "board" ? "hidden" : ""}`}>
         {!hydrated ? (
           [1,2,3,4,5].map(i => <SkeletonTableRow key={i} cols={3} />)
         ) : paginated.length === 0 ? (
@@ -244,8 +280,8 @@ export default function TicketsPage() {
         ))}
       </div>
 
-      {/* Desktop Table */}
-      <div className="hidden md:block rounded-2xl overflow-hidden" style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
+      {/* Desktop Table — hidden in board mode */}
+      <div className={`${viewMode === "board" ? "hidden" : "hidden md:block"} rounded-2xl overflow-hidden`} style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 40px 0 rgba(26,28,28,0.06)" }}>
         <div className="grid grid-cols-[0.7fr_0.8fr_1.3fr_1.1fr_0.9fr_0.8fr_0.8fr_0.8fr_0.9fr_36px] gap-3 px-6 py-3" style={{ background: "var(--surface-low)" }}>
           {["TICKET","CLIENT ID","CUSTOMER","PHONE","ISSUE TYPE","PRIORITY","STATUS","AGENT","CREATED",""].map(h => (
             <span key={h} className="text-label-caps text-[#48484a]">{h}</span>
