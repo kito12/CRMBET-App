@@ -1,14 +1,43 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import AppShell from "@/components/AppShell";
 import ThemeProvider from "@/components/ThemeProvider";
 import CommandPaletteProvider from "@/components/CommandPaletteProvider";
 import DataProvider from "@/components/DataProvider";
 import AuthProvider from "@/components/AuthProvider";
+import SwRegister from "@/components/SwRegister";
+
+export const viewport: Viewport = {
+  width:            "device-width",
+  initialScale:     1,
+  maximumScale:     1,
+  userScalable:     false,
+  themeColor:       "#7131d6",
+  viewportFit:      "cover",
+};
 
 export const metadata: Metadata = {
-  title: "DeskHive — Customer Support",
+  title:       "DeskHive — Customer Support",
   description: "Customer relationship management for DeskHive support teams",
+  manifest:    "/manifest.json",
+  appleWebApp: {
+    capable:         true,
+    title:           "DeskHive",
+    statusBarStyle:  "black-translucent",
+  },
+  icons: {
+    icon:       [
+      { url: "/pwa-icon/32",  sizes: "32x32",   type: "image/png" },
+      { url: "/pwa-icon/192", sizes: "192x192",  type: "image/png" },
+    ],
+    apple:      [
+      { url: "/pwa-icon/180", sizes: "180x180",  type: "image/png" },
+    ],
+    shortcut:   "/pwa-icon/32",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
 };
 
 export default function RootLayout({
@@ -38,6 +67,7 @@ export default function RootLayout({
             </DataProvider>
           </AuthProvider>
         </ThemeProvider>
+        <SwRegister />
       </body>
     </html>
   );
