@@ -188,6 +188,11 @@ export default function TicketsPage() {
       return d >= dateBounds.from && d <= dateBounds.to;
     })();
     return matchesSearch && matchesStatus && matchesAgentView && matchesAgentFilter && matchesDate;
+  }).sort((a, b) => {
+    // Latest first — prefer ISO timestamp, fall back to display label
+    const aTime = a.createdAt ? new Date(a.createdAt).getTime() : parseTicketDate(a)?.getTime() ?? 0;
+    const bTime = b.createdAt ? new Date(b.createdAt).getTime() : parseTicketDate(b)?.getTime() ?? 0;
+    return bTime - aTime;
   }), [tickets, search, activeFilter, agentView, agentFilter, dateBounds, currentUser?.name]);
 
   const extraFilterCount = (dateRange !== "all" ? 1 : 0) + (agentFilter !== "all" ? 1 : 0);
