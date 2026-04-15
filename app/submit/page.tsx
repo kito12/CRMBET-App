@@ -140,7 +140,7 @@ export default function SubmitPage() {
             Submit Another Request
           </button>
         </div>
-        <p className="text-xs text-[#9ca3af] mt-8">Powered by BetCRM</p>
+        <p className="text-xs text-[#9ca3af] mt-8">Powered by PremierBet</p>
       </div>
     );
   }
@@ -156,7 +156,7 @@ export default function SubmitPage() {
           style={{ background: "linear-gradient(135deg, #7131d6, #0058bf)" }}>
           <CrmBetLogo size={16} className="text-white" />
         </div>
-        <span className="text-lg font-bold text-[#1a1c1c]">BetCRM</span>
+        <span className="text-lg font-bold text-[#1a1c1c]">PremierBet</span>
         <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">Support</span>
       </div>
 
@@ -285,7 +285,7 @@ export default function SubmitPage() {
         </form>
       </div>
 
-      <p className="text-xs text-[#9ca3af] mt-8">Powered by BetCRM</p>
+      <p className="text-xs text-[#9ca3af] mt-8">Powered by PremierBet</p>
     </div>
   );
 }

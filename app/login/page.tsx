@@ -49,7 +49,7 @@ export default function LoginPage() {
             <CrmBetLogo size={24} className="text-white" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--on-surface)" }}>
-            BetCRM
+            PremierBet
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--on-surface-variant)" }}>
             Sign in to your support account

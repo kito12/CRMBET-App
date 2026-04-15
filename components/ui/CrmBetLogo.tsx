@@ -1,7 +1,7 @@
 /**
- * CrmBet brand mark — three parallel diagonal bars of varying lengths
- * suggesting speed and data flow. Uses `currentColor` so it inherits
- * the parent's text color (white on dark backgrounds, purple standalone).
+ * PremierBet brand mark — geometric PB monogram.
+ * Uses `currentColor` so it renders white on dark/gradient backgrounds
+ * and inherits any colour in standalone contexts.
  */
 export default function CrmBetLogo({
   size = 20,
@@ -18,17 +18,30 @@ export default function CrmBetLogo({
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
-      aria-label="CrmBet logo"
+      aria-label="PremierBet logo"
     >
-      {/* Three truly-parallel diagonal bars — rotated as a group so spacing is exact */}
-      <g transform="rotate(-28 12 12)">
-        {/* Top bar — shortest */}
-        <rect x="9.5" y="3.5"  width="8"  height="2.8" rx="1.4" fill="currentColor" />
-        {/* Middle bar — longest */}
-        <rect x="2.5" y="10.5" width="19" height="2.8" rx="1.4" fill="currentColor" />
-        {/* Bottom bar — medium */}
-        <rect x="5.5" y="17.5" width="13" height="2.8" rx="1.4" fill="currentColor" />
-      </g>
+      {/* ── P ── */}
+      {/* Vertical stroke */}
+      <rect x="1.5" y="3" width="2.5" height="18" rx="1.2" fill="currentColor" />
+      {/* Bowl — top half only */}
+      <path
+        d="M 4 3 L 8.5 3 C 11.8 3, 11.8 9.5, 8.5 9.5 L 4 9.5 Z"
+        fill="currentColor"
+      />
+
+      {/* ── B ── */}
+      {/* Vertical stroke */}
+      <rect x="13" y="3" width="2.5" height="18" rx="1.2" fill="currentColor" />
+      {/* Upper bump */}
+      <path
+        d="M 15.5 3 L 18.5 3 C 22 3, 22 8.5, 18.5 8.5 L 15.5 8.5 Z"
+        fill="currentColor"
+      />
+      {/* Lower bump — slightly wider for classic B proportion */}
+      <path
+        d="M 15.5 9.5 L 19 9.5 C 23 9.5, 23 15.5, 19 15.5 L 15.5 15.5 Z"
+        fill="currentColor"
+      />
     </svg>
   );
 }
