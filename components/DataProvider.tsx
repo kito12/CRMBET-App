@@ -2,17 +2,11 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import {
-  collection, doc, onSnapshot, writeBatch, setDoc, getDoc, query, where,
+  collection, doc, onSnapshot, writeBatch, setDoc, query, where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "./AuthProvider";
-import {
-  customers as seedCustomers,
-  tickets as seedTickets,
-  seedNotifications,
-  seedCannedResponses,
-  defaultEscalationSettings,
-} from "@/lib/data";
+import { defaultEscalationSettings } from "@/lib/data";
 import type {
   Customer, Ticket, AppNotification, CannedResponse, EscalationSettings, AuditEntry,
 } from "@/lib/data";
@@ -168,107 +162,57 @@ export default function DataProvider({ children }: { children: React.ReactNode }
       return;
     }
 
-    const uid = user.uid; // capture before async gap
-    let active = true;
-    const unsubs: (() => void)[] = [];
-
-    async function setup() {
-      // Check if Firestore has ever been seeded — if yes, never auto-seed again
-      const initSnap = await getDoc(doc(db, "settings", "initialized"));
-      if (!active) return;
-      const alreadyInitialized = initSnap.exists();
-
-      // Track which collections have loaded their first snapshot
-      const loaded = { tickets: false, customers: false, notifs: false, canned: false, escalation: false };
-      function markLoaded(key: keyof typeof loaded) {
-        loaded[key] = true;
-        if (loaded.tickets && loaded.customers && loaded.notifs && loaded.canned && loaded.escalation) {
-          setHydrated(true);
-        }
+    const uid = user.uid;
+    const loaded = { tickets: false, customers: false, notifs: false, canned: false, escalation: false };
+    function markLoaded(key: keyof typeof loaded) {
+      loaded[key] = true;
+      if (loaded.tickets && loaded.customers && loaded.notifs && loaded.canned && loaded.escalation) {
+        setHydrated(true);
       }
-
-      let seededOnce = false; // prevents double-seed on rapid empty snapshots
-
-      async function doFirstTimeSeed() {
-        const batch = writeBatch(db);
-        seedTickets.forEach(t         => batch.set(doc(db, "tickets",         t.id),       t as object));
-        seedCustomers.forEach(c       => batch.set(doc(db, "customers",       c.clientId), c as object));
-        seedNotifications.forEach(n   => batch.set(doc(db, "notifications",   n.id),       n as object));
-        seedCannedResponses.forEach(c => batch.set(doc(db, "cannedResponses", c.id),       c as object));
-        await batch.commit();
-        await setDoc(doc(db, "settings", "escalation"),   defaultEscalationSettings);
-        await setDoc(doc(db, "settings", "initialized"),  { at: new Date().toISOString() });
-      }
-
-      // ── Tickets ──
-      unsubs.push(onSnapshot(collection(db, "tickets"), async snap => {
-        if (snap.empty && !alreadyInitialized && !seededOnce) {
-          seededOnce = true;
-          await doFirstTimeSeed();
-          return;
-        }
-        const docs = snap.docs.map(d => d.data() as Ticket);
-        _setTickets(docs);
-        ticketsRef.current = docs;
-        markLoaded("tickets");
-      }));
-
-      // ── Customers ──
-      unsubs.push(onSnapshot(collection(db, "customers"), snap => {
-        const docs = snap.docs.map(d => d.data() as Customer);
-        _setCustomers(docs);
-        customersRef.current = docs;
-        markLoaded("customers");
-      }));
-
-      // ── Notifications ──
-      unsubs.push(onSnapshot(collection(db, "notifications"), snap => {
-        const docs = snap.docs.map(d => d.data() as AppNotification);
-        _setNotifications(docs);
-        notifsRef.current = docs;
-        markLoaded("notifs");
-      }));
-
-      // ── Canned responses ──
-      unsubs.push(onSnapshot(collection(db, "cannedResponses"), snap => {
-        const docs = snap.docs.map(d => d.data() as CannedResponse);
-        _setCannedResponses(docs);
-        cannedRef.current = docs;
-        markLoaded("canned");
-      }));
-
-      // ── Escalation settings ──
-      unsubs.push(onSnapshot(doc(db, "settings", "escalation"), async snap => {
-        if (!snap.exists()) {
-          await setDoc(doc(db, "settings", "escalation"), defaultEscalationSettings);
-          markLoaded("escalation");
-          return;
-        }
-        const data = snap.data() as EscalationSettings;
-        _setEscalationSettings(data);
-        escalRef.current = data;
-        markLoaded("escalation");
-      }));
-
-      // ── Messages unread count ──
-      unsubs.push(onSnapshot(
-        query(collection(db, "conversations"), where("participants", "array-contains", uid)),
-        snap => {
-          let total = 0;
-          snap.docs.forEach(d => {
-            const data = d.data();
-            total += (data.unread?.[uid] as number) ?? 0;
-          });
-          setMessagesUnreadCount(total);
-        }
-      ));
     }
 
-    setup().catch(console.error);
+    const unsubTickets = onSnapshot(collection(db, "tickets"), snap => {
+      const docs = snap.docs.map(d => d.data() as Ticket);
+      _setTickets(docs); ticketsRef.current = docs; markLoaded("tickets");
+    });
+
+    const unsubCustomers = onSnapshot(collection(db, "customers"), snap => {
+      const docs = snap.docs.map(d => d.data() as Customer);
+      _setCustomers(docs); customersRef.current = docs; markLoaded("customers");
+    });
+
+    const unsubNotifs = onSnapshot(collection(db, "notifications"), snap => {
+      const docs = snap.docs.map(d => d.data() as AppNotification);
+      _setNotifications(docs); notifsRef.current = docs; markLoaded("notifs");
+    });
+
+    const unsubCanned = onSnapshot(collection(db, "cannedResponses"), snap => {
+      const docs = snap.docs.map(d => d.data() as CannedResponse);
+      _setCannedResponses(docs); cannedRef.current = docs; markLoaded("canned");
+    });
+
+    const unsubEscalation = onSnapshot(doc(db, "settings", "escalation"), async snap => {
+      if (!snap.exists()) {
+        await setDoc(doc(db, "settings", "escalation"), defaultEscalationSettings);
+        markLoaded("escalation");
+        return;
+      }
+      const data = snap.data() as EscalationSettings;
+      _setEscalationSettings(data); escalRef.current = data; markLoaded("escalation");
+    });
+
+    const unsubConversations = onSnapshot(
+      query(collection(db, "conversations"), where("participants", "array-contains", uid)),
+      snap => {
+        let total = 0;
+        snap.docs.forEach(d => { total += (d.data().unread?.[uid] as number) ?? 0; });
+        setMessagesUnreadCount(total);
+      }
+    );
 
     return () => {
-      active = false;
-      unsubs.forEach(u => u());
+      unsubTickets(); unsubCustomers(); unsubNotifs();
+      unsubCanned(); unsubEscalation(); unsubConversations();
     };
   }, [user]);
 
