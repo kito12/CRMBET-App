@@ -219,6 +219,16 @@ export default function DataProvider({ children }: { children: React.ReactNode }
 
     const unsubTickets = onSnapshot(query(collection(db, "tickets"), limit(500)), snap => {
       const docs = snap.docs.map(d => d.data() as Ticket);
+
+      // One-time cleanup: reassign any tickets still assigned to the legacy
+      // "James R." placeholder agent → Unassigned
+      const jamesRDocs = snap.docs.filter(d => d.data().agent === "James R.");
+      if (jamesRDocs.length > 0) {
+        const batch = writeBatch(db);
+        jamesRDocs.forEach(d => batch.update(d.ref, { agent: "Unassigned" }));
+        batch.commit().catch(console.error);
+      }
+
       _setTickets(docs); ticketsRef.current = docs; markLoaded("tickets");
     });
 
