@@ -74,6 +74,30 @@ const emptyForm = {
   agent: "Unassigned", description: "",
 };
 
+// Ticket age — returns compact label + color class for how long a ticket has been open
+function getTicketAge(ticket: Ticket): { label: string; cls: string } | null {
+  if (ticket.status === "Resolved") return null;
+  const d = parseTicketDate(ticket);
+  if (!d) return null;
+  const diffMs = Date.now() - d.getTime();
+  const mins   = Math.floor(diffMs / 60_000);
+  const hours  = Math.floor(mins / 60);
+  const days   = Math.floor(hours / 24);
+
+  let label = "";
+  if (days >= 1)       label = `${days}d`;
+  else if (hours >= 1) label = `${hours}h`;
+  else                 label = `${Math.max(mins, 1)}m`;
+
+  // Color thresholds — green <6h, amber 6-24h, red >24h
+  const cls =
+    hours >= 24 ? "bg-red-50 text-red-600" :
+    hours >= 6  ? "bg-amber-50 text-amber-700" :
+                  "bg-emerald-50 text-emerald-600";
+
+  return { label, cls };
+}
+
 // Response dot — shows whether the agent has left a note on the ticket
 // 🟢 green  = resolved
 // 🟡 amber  = on hold OR note added but still open
@@ -130,6 +154,10 @@ export default function TicketsPage() {
   const [savePresetOpen, setSavePresetOpen] = useState(false);
   const [presetName, setPresetName]     = useState("");
 
+  // Customer picker (new ticket modal)
+  const [pickerOpen, setPickerOpen]     = useState(false);
+  const [pickerQuery, setPickerQuery]   = useState("");
+
   // Bulk selection
   const [selectedIds, setSelectedIds]   = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus]     = useState<string>("");
@@ -185,6 +213,38 @@ export default function TicketsPage() {
       setForm(f => ({ ...f, clientId: val }));
     }
   }
+
+  function selectCustomer(c: typeof customers[number]) {
+    setForm(f => ({
+      ...f,
+      clientId: c.clientId,
+      customer: c.name,
+      email: c.email,
+      phone: c.phone,
+      priority: c.accountType === "VIP" ? "High" : f.priority,
+    }));
+    setPickerOpen(false);
+    setPickerQuery("");
+  }
+
+  // Filter customers for the picker — matches by name, email, clientId, or phone
+  const pickerResults = useMemo(() => {
+    const q = pickerQuery.trim().toLowerCase();
+    const list = q
+      ? customers.filter(c =>
+          c.name.toLowerCase().includes(q) ||
+          c.email.toLowerCase().includes(q) ||
+          c.clientId.toLowerCase().includes(q) ||
+          (c.phone ?? "").toLowerCase().includes(q)
+        )
+      : customers;
+    // VIPs first
+    return [...list].sort((a, b) => {
+      const av = a.accountType === "VIP" ? 1 : 0;
+      const bv = b.accountType === "VIP" ? 1 : 0;
+      return bv - av;
+    }).slice(0, 8);
+  }, [pickerQuery, customers]);
 
   const dateBounds = useMemo(() => getDateBounds(dateRange), [dateRange]);
   const filtered = useMemo(() => tickets.filter((t) => {
@@ -593,6 +653,14 @@ export default function TicketsPage() {
             <div className="flex items-center justify-between">
               <span className="text-xs text-[#48484a]">{ticket.agent}</span>
               <div className="flex items-center gap-1.5">
+                {(() => {
+                  const age = getTicketAge(ticket);
+                  return age ? (
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${age.cls}`} title={`Open for ${age.label}`}>
+                      {age.label}
+                    </span>
+                  ) : null;
+                })()}
                 <span title={getSLADotTitle(ticket)} className={`w-1.5 h-1.5 rounded-full ${getSLADotClass(ticket)}`} />
                 <span className="text-xs text-[#48484a]">{formatCreated(ticket)}</span>
               </div>
@@ -667,6 +735,14 @@ export default function TicketsPage() {
               <StatusPill status={ticket.status} />
               <span className="text-sm text-[#48484a]">{ticket.agent}</span>
               <div className="flex items-center gap-1.5">
+                {(() => {
+                  const age = getTicketAge(ticket);
+                  return age ? (
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0 ${age.cls}`} title={`Open for ${age.label}`}>
+                      {age.label}
+                    </span>
+                  ) : null;
+                })()}
                 <span title={getSLADotTitle(ticket)} className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getSLADotClass(ticket)}`} />
                 <span className="text-xs text-[#48484a]">{formatCreated(ticket)}</span>
               </div>
@@ -763,11 +839,58 @@ export default function TicketsPage() {
       {/* New Ticket Modal */}
       <Modal open={modalOpen} onClose={() => { setModalOpen(false); setErrors({}); setForm(emptyForm); }} title="New Ticket" subtitle="Create a new customer support request">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div>
-            <InputField label="Client ID" placeholder="CLT-10042 (auto-fills details)" value={form.clientId}
-              onChange={(e) => handleClientIdChange(e.target.value)} />
-            {form.clientId && customers.find(c => c.clientId.toLowerCase() === form.clientId.toLowerCase()) && (
-              <p className="text-xs text-emerald-600 mt-1">✓ Client found — details auto-filled</p>
+          <div className="relative">
+            <label className="text-xs font-semibold text-[#48484a] uppercase tracking-wide mb-1.5 block">Customer</label>
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#48484a]" />
+              <input
+                type="text"
+                placeholder="Search by name, email, client ID, or phone…"
+                value={pickerOpen ? pickerQuery : (form.customer ? `${form.customer} (${form.clientId || "no ID"})` : "")}
+                onFocus={() => { setPickerOpen(true); setPickerQuery(""); }}
+                onChange={(e) => { setPickerOpen(true); setPickerQuery(e.target.value); }}
+                onBlur={() => setTimeout(() => setPickerOpen(false), 150)}
+                className="w-full pl-9 pr-8 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-200 transition-all"
+                style={{ background: "var(--surface-low)" }}
+              />
+              {form.clientId && !pickerOpen && (
+                <button type="button"
+                  onClick={() => setForm(f => ({ ...f, clientId: "", customer: "", email: "", phone: "" }))}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-lg text-[#48484a] hover:bg-red-50 hover:text-red-500 transition-colors">
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+            {pickerOpen && pickerResults.length > 0 && (
+              <div className="absolute z-10 left-0 right-0 mt-1 rounded-xl overflow-hidden max-h-64 overflow-y-auto"
+                style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 32px rgba(26,28,28,0.12)", border: "1px solid rgba(204,195,215,0.3)" }}>
+                {pickerResults.map(c => (
+                  <button key={c.clientId} type="button"
+                    onMouseDown={(e) => { e.preventDefault(); selectCustomer(c); }}
+                    className="w-full px-3 py-2 text-left hover:bg-purple-50 transition-colors flex items-center gap-2 border-b border-[rgba(204,195,215,0.15)] last:border-b-0">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-medium text-[#1a1c1c] truncate">{c.name}</span>
+                        {c.accountType === "VIP" && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-purple-50 text-purple-700 flex-shrink-0">
+                            <Crown size={8} /> VIP
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-[#48484a] truncate">{c.clientId} · {c.email || c.phone || "—"}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {pickerOpen && pickerQuery && pickerResults.length === 0 && (
+              <div className="absolute z-10 left-0 right-0 mt-1 rounded-xl p-3 text-xs text-[#48484a]"
+                style={{ background: "var(--surface-lowest)", boxShadow: "0 8px 32px rgba(26,28,28,0.12)", border: "1px solid rgba(204,195,215,0.3)" }}>
+                No customers found. You can still fill the form manually below.
+              </div>
+            )}
+            {form.clientId && !pickerOpen && (
+              <p className="text-xs text-emerald-600 mt-1">✓ Client selected — details auto-filled</p>
             )}
           </div>
           <div className="grid grid-cols-2 gap-4">

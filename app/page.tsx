@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { StatusPill } from "@/components/ui/StatusPill";
-import { Clock, CheckCircle2, AlertCircle, ShieldAlert, UserX, Users, ArrowRight, Zap, X } from "lucide-react";
+import { Clock, CheckCircle2, AlertCircle, ShieldAlert, UserX, Users, ArrowRight, Zap, X, Crown } from "lucide-react";
 import Link from "next/link";
 import { useData } from "@/components/DataProvider";
 import { useAuth } from "@/components/AuthProvider";
@@ -287,6 +287,36 @@ export default function Dashboard() {
           {liveMode ? "Live — new ticket in ~12s" : "Enable Live Feed"}
         </button>
       </div>
+
+      {/* VIP alert strip — shown when there are open tickets from VIP customers */}
+      {hydrated && (() => {
+        const vipClientIds = new Set(customers.filter(c => c.accountType === "VIP").map(c => c.clientId));
+        const vipOpen = tickets.filter(t => t.status !== "Resolved" && vipClientIds.has(t.clientId));
+        if (vipOpen.length === 0) return null;
+        const vipHigh = vipOpen.filter(t => t.priority === "High").length;
+        const vipUnassigned = vipOpen.filter(t => t.agent === "Unassigned").length;
+        return (
+          <Link href="/tickets?status=Open"
+            className="flex items-center gap-4 p-4 mb-6 rounded-2xl transition-all hover:opacity-95"
+            style={{
+              background: "linear-gradient(135deg, rgba(113,49,214,0.08), rgba(0,88,191,0.08))",
+              border: "1px solid rgba(113,49,214,0.2)",
+            }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 gradient-primary">
+              <Crown size={18} className="text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-[#1a1c1c]">
+                {vipOpen.length} open VIP ticket{vipOpen.length !== 1 ? "s" : ""} — needs priority attention
+              </p>
+              <p className="text-xs text-[#48484a] mt-0.5">
+                {vipHigh} high priority · {vipUnassigned} unassigned
+              </p>
+            </div>
+            <ArrowRight size={16} className="text-purple-600 flex-shrink-0" />
+          </Link>
+        );
+      })()}
 
       {/* 60/40 grid */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
