@@ -1296,6 +1296,39 @@
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
 }
 
+/* ================= PRINT MODE (served at /brochure?print=1 for Puppeteer) ================= */
+/* When print=1, layout slides at native 1920×1080 with a page break after each. */
+.brochure-print-mode {
+  background: #fff !important;
+  padding: 0 !important;
+  min-height: auto !important;
+}
+.brochure-print-mode .brochure-deck {
+  padding: 0 !important;
+  gap: 0 !important;
+  display: block !important;
+  max-width: none !important;
+}
+.brochure-print-mode .brochure-slide-wrap {
+  width: 1920px !important;
+  height: 1080px !important;
+  overflow: hidden;
+  page-break-after: always;
+  break-after: page;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.brochure-print-mode .brochure-slide-wrap:last-child {
+  page-break-after: auto;
+  break-after: auto;
+}
+.brochure-print-mode .brochure-slide {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+/* The @page rule tells headless Chrome to use our 1920×1080 page size */
+@page { size: 1920px 1080px; margin: 0; }
+
 /* ================= EXPORT OVERLAY (shown while generating PDF) ================= */
 .brochure-export-overlay {
   position: fixed;
