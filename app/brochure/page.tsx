@@ -3,28 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import "./brochure.css";
 
-// ============ PDF download (server-side via /api/brochure/pdf) ============
-async function downloadBrochurePDF(setStatus: (s: string) => void) {
-  setStatus("Generating PDF…");
-  const res = await fetch("/api/brochure/pdf", { cache: "no-store" });
-  if (!res.ok) {
-    setStatus("");
-    let detail = "";
-    try { detail = JSON.stringify(await res.json()); } catch {}
-    throw new Error(`PDF generation failed (${res.status}) ${detail}`);
-  }
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "DeskHive-Brochure.pdf";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  setStatus("");
-}
-
 // ============ Icons ============
 type IconProps = { size?: number; stroke?: number; fill?: string };
 const Icon = ({ size = 18, stroke = 1.75, fill = "none", children }: IconProps & { children: React.ReactNode }) => (
@@ -520,12 +498,11 @@ function CtaPage() {
 }
 
 // ============ Slide wrapper: scales the 1920×1080 canvas down to container width ============
-function Slide({ id, children, printMode = false }: { id: string; children: React.ReactNode; printMode?: boolean }) {
+function Slide({ id, children }: { id: string; children: React.ReactNode }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
 
   useEffect(() => {
-    if (printMode) return; // Skip scaling entirely for PDF render
     function update() {
       const w = wrapRef.current?.clientWidth ?? 1920;
       setScale(Math.min(1, w / 1920));
@@ -533,15 +510,7 @@ function Slide({ id, children, printMode = false }: { id: string; children: Reac
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
-  }, [printMode]);
-
-  if (printMode) {
-    return (
-      <div className="brochure-slide-wrap brochure-slide-print" id={id} style={{ width: 1920, height: 1080 }}>
-        <div style={{ width: 1920, height: 1080 }}>{children}</div>
-      </div>
-    );
-  }
+  }, []);
 
   return (
     <div className="brochure-slide-wrap" id={id} ref={wrapRef} style={{ height: 1080 * scale }}>
@@ -554,26 +523,6 @@ function Slide({ id, children, printMode = false }: { id: string; children: Reac
 
 // ============ Page ============
 export default function BrochurePage() {
-  const [exportStatus, setExportStatus] = useState("");
-  const isExporting = exportStatus !== "";
-  const [isPrintMode, setIsPrintMode] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    setIsPrintMode(new URLSearchParams(window.location.search).get("print") === "1");
-  }, []);
-
-  async function handleDownload() {
-    if (isExporting) return;
-    try {
-      await downloadBrochurePDF(setExportStatus);
-    } catch (e) {
-      console.error(e);
-      setExportStatus("");
-      alert("Could not generate PDF.\n\n" + (e instanceof Error ? e.message : String(e)));
-    }
-  }
-
   return (
     <>
       {/* Google fonts */}
@@ -584,47 +533,19 @@ export default function BrochurePage() {
         rel="stylesheet"
       />
 
-      <div className={`brochure-root${isPrintMode ? " brochure-print-mode" : ""}`}>
-        {!isPrintMode && <nav className="brochure-bar" aria-label="Brochure navigation">
+      <div className="brochure-root">
+        <nav className="brochure-bar" aria-label="Brochure navigation">
           <a href="#slide-cover">01 · Cover</a>
           <a href="#slide-problem">02 · Problem</a>
           <a href="#slide-product">03 · Product</a>
           <a href="#slide-scale">04 · Scale</a>
           <a href="#slide-why">05 · Why</a>
           <a href="#slide-cta">06 · CTA</a>
-          <button
-            type="button"
-            onClick={handleDownload}
-            disabled={isExporting}
-            className="brochure-bar-dl"
-            aria-label="Download as PDF"
-          >
-            {isExporting ? "…" : "↓ PDF"}
-          </button>
-        </nav>}
-        {!isPrintMode && (
-          <button
-            type="button"
-            onClick={handleDownload}
-            disabled={isExporting}
-            className="brochure-fab"
-            aria-label="Download as PDF"
-          >
-            {isExporting ? "…" : "↓ PDF"}
-          </button>
-        )}
-        {isExporting && (
-          <div className="brochure-export-overlay" role="status" aria-live="polite">
-            <div className="brochure-export-card">
-              <div className="brochure-export-spinner" />
-              <div className="brochure-export-text">{exportStatus}</div>
-            </div>
-          </div>
-        )}
+        </nav>
 
         <div className="brochure-deck">
           {/* 01 — COVER */}
-          <Slide id="slide-cover" printMode={isPrintMode}>
+          <Slide id="slide-cover">
             <section className="brochure-slide slide-cover">
               <div className="aurora"></div>
               <div className="grid-bg"></div>
@@ -677,7 +598,7 @@ export default function BrochurePage() {
           </Slide>
 
           {/* 02 — PROBLEM */}
-          <Slide id="slide-problem" printMode={isPrintMode}>
+          <Slide id="slide-problem">
             <section className="brochure-slide slide-problem">
               <div className="grid-bg dense"></div>
               <div className="topbar">
@@ -708,7 +629,7 @@ export default function BrochurePage() {
           </Slide>
 
           {/* 03 — PRODUCT */}
-          <Slide id="slide-product" printMode={isPrintMode}>
+          <Slide id="slide-product">
             <section className="brochure-slide slide-product">
               <div className="topbar">
                 <div className="wordmark"><div className="mark"></div>DeskHive</div>
@@ -733,7 +654,7 @@ export default function BrochurePage() {
           </Slide>
 
           {/* 04 — SCALE */}
-          <Slide id="slide-scale" printMode={isPrintMode}>
+          <Slide id="slide-scale">
             <section className="brochure-slide slide-scale">
               <div className="aurora" style={{opacity: 0.35}}></div>
               <div className="topbar">
@@ -763,7 +684,7 @@ export default function BrochurePage() {
           </Slide>
 
           {/* 05 — WHY */}
-          <Slide id="slide-why" printMode={isPrintMode}>
+          <Slide id="slide-why">
             <section className="brochure-slide slide-why">
               <div className="grid-bg dense"></div>
               <div className="topbar">
@@ -783,7 +704,7 @@ export default function BrochurePage() {
           </Slide>
 
           {/* 06 — CTA */}
-          <Slide id="slide-cta" printMode={isPrintMode}>
+          <Slide id="slide-cta">
             <section className="brochure-slide slide-cta">
               <div className="aurora"></div>
               <div className="topbar">
