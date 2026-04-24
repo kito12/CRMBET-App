@@ -454,8 +454,10 @@ function CtaPage() {
           hand you the keys. No slides, no pitch deck after this one.
         </p>
         <div style={{display: "flex", gap: 14, marginTop: 8}}>
-          <button className="btn btn-primary">Book a walkthrough <IconArrow size={14}/></button>
-          <button className="btn" style={{background: "rgba(255,255,255,0.08)", color: "#fff", border: "1px solid rgba(255,255,255,0.15)"}}>Read the docs</button>
+          <a href="mailto:johnny.p.jabbour@gmail.com?subject=DeskHive%20walkthrough%20request"
+             className="btn btn-primary" style={{textDecoration: "none"}}>
+            Book a walkthrough <IconArrow size={14}/>
+          </a>
         </div>
       </div>
       <div className="cta-panel">
@@ -471,9 +473,18 @@ function CtaPage() {
           <div className="qr"><QrPlaceholder/></div>
         </div>
         <div>
-          <div className="cta-row"><span className="k">Demo</span><span className="v">deskhive.io/demo</span></div>
-          <div className="cta-row"><span className="k">Sales</span><span className="v">talk@deskhive.io</span></div>
-          <div className="cta-row"><span className="k">Press</span><span className="v">press@deskhive.io</span></div>
+          <div className="cta-row">
+            <span className="k">Demo</span>
+            <a href="mailto:johnny.p.jabbour@gmail.com?subject=DeskHive%20demo%20request" className="v" style={{textDecoration: "none"}}>
+              Request a demo
+            </a>
+          </div>
+          <div className="cta-row">
+            <span className="k">Sales</span>
+            <a href="mailto:johnny.p.jabbour@gmail.com" className="v" style={{textDecoration: "none"}}>
+              johnny.p.jabbour@gmail.com
+            </a>
+          </div>
           <div className="cta-row"><span className="k">HQ</span><span className="v">Remote · EU / US</span></div>
         </div>
         <div style={{display: "flex", gap: 10, flexWrap: "wrap"}}>
@@ -558,8 +569,14 @@ export default function BrochurePage() {
                     operations. Built to find what matters, and answer it first.
                   </p>
                   <div className="cover-cta">
-                    <button className="btn btn-primary">Book a walkthrough →</button>
-                    <button className="btn btn-ghost">deskhive.io/product</button>
+                    <a href="mailto:johnny.p.jabbour@gmail.com?subject=DeskHive%20walkthrough%20request"
+                       className="btn btn-primary" style={{textDecoration: "none"}}>
+                      Book a walkthrough →
+                    </a>
+                    <a href="mailto:johnny.p.jabbour@gmail.com"
+                       className="btn btn-ghost" style={{textDecoration: "none"}}>
+                      johnny.p.jabbour@gmail.com
+                    </a>
                   </div>
                   <div className="cover-meta">
                     <div><span className="mono meta-num">99.98%</span><div className="label-caps">Realtime uptime</div></div>
