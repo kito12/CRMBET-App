@@ -541,7 +541,23 @@ export default function BrochurePage() {
           <a href="#slide-scale">04 · Scale</a>
           <a href="#slide-why">05 · Why</a>
           <a href="#slide-cta">06 · CTA</a>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="brochure-bar-dl"
+            aria-label="Download as PDF"
+          >
+            ↓ PDF
+          </button>
         </nav>
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="brochure-fab"
+          aria-label="Download as PDF"
+        >
+          ↓ PDF
+        </button>
 
         <div className="brochure-deck">
           {/* 01 — COVER */}

@@ -1258,10 +1258,49 @@
 }
 .brochure-bar a:hover { color: #fff; background: rgba(255,255,255,0.08); }
 
-/* ================= MOBILE — hide floating nav, users just scroll ================= */
+/* Download PDF button inside the nav pill */
+.brochure-bar-dl {
+  margin-left: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 0;
+  background: linear-gradient(135deg, var(--grad-a), var(--grad-b));
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 4px 14px rgba(113, 49, 214, 0.35);
+}
+.brochure-bar-dl:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(113, 49, 214, 0.5); }
+
+/* Mobile floating download button (shown only on narrow viewports) */
+.brochure-fab {
+  display: none;
+  position: fixed;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 25;
+  padding: 12px 18px;
+  border-radius: 999px;
+  border: 0;
+  background: linear-gradient(135deg, var(--grad-a), var(--grad-b));
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* ================= MOBILE — hide floating nav, show FAB, users just scroll ================= */
 @media (max-width: 768px) {
   .brochure-root .brochure-bar { display: none !important; }
   .brochure-root .brochure-deck { padding-top: 16px !important; gap: 16px !important; }
+  .brochure-root .brochure-fab { display: inline-flex; align-items: center; gap: 6px; }
 }
 
 /* ================= PRINT — export as PDF ================= */
@@ -1299,6 +1338,26 @@
     border-radius: 0 !important;
     box-shadow: none !important;
   }
+  /* Hide on-screen-only chrome in print */
+  .brochure-bar-dl, .brochure-fab { display: none !important; }
+
+  /* --- Print fixes for the three known issues --- */
+
+  /* 1) Cover: pull the CTA + meta up a hair so nothing crowds the hero */
+  .brochure-root .cover-cta { margin-top: 18px !important; }
+  .brochure-root .cover-meta { margin-top: 22px !important; }
+
+  /* 2) Pillar 05 dashboard: the sparkline SVG was clipping at the baseline —
+        give the mock a bit of bottom padding and let the svg overflow visible */
+  .brochure-root .pm-dash { padding-bottom: 10px !important; }
+  .brochure-root .pm-dash-spark { overflow: visible !important; }
+  .brochure-root .pm-dash-spark svg { overflow: visible !important; }
+
+  /* 3) QR: some print engines drop tiny <rect> fills under 1px. Force crisp,
+        slightly enlarge the data modules, and ensure black renders */
+  .brochure-root .qr svg { shape-rendering: crispEdges !important; }
+  .brochure-root .qr svg rect[fill="#1a1c1c"] { fill: #000 !important; }
+
   /* Force color backgrounds/gradients to render in PDF */
   * {
     -webkit-print-color-adjust: exact !important;
