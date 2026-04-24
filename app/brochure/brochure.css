@@ -1258,6 +1258,12 @@
 }
 .brochure-bar a:hover { color: #fff; background: rgba(255,255,255,0.08); }
 
+/* ================= MOBILE — hide floating nav, users just scroll ================= */
+@media (max-width: 768px) {
+  .brochure-root .brochure-bar { display: none !important; }
+  .brochure-root .brochure-deck { padding-top: 16px !important; gap: 16px !important; }
+}
+
 /* ================= PRINT — export as PDF ================= */
 @media print {
   @page {
