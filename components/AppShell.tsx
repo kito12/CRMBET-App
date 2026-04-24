@@ -8,7 +8,7 @@ import { useAuth } from "./AuthProvider";
 import PwaInstallBanner from "./PwaInstallBanner";
 
 // Routes that don't require authentication
-const PUBLIC_PATHS = ["/login", "/submit"];
+const PUBLIC_PATHS = ["/login", "/submit", "/brochure"];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname  = usePathname();
