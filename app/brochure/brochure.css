@@ -1257,3 +1257,45 @@
   transition: all 0.15s ease;
 }
 .brochure-bar a:hover { color: #fff; background: rgba(255,255,255,0.08); }
+
+/* ================= PRINT — export as PDF ================= */
+@media print {
+  @page {
+    size: 1920px 1080px;
+    margin: 0;
+  }
+  html, body { background: #fff !important; }
+  .brochure-root { background: #fff !important; }
+  .brochure-bar { display: none !important; }
+  .brochure-deck {
+    padding: 0 !important;
+    gap: 0 !important;
+    display: block !important;
+  }
+  .brochure-slide-wrap {
+    width: 1920px !important;
+    height: 1080px !important;
+    page-break-after: always;
+    break-after: page;
+    overflow: hidden;
+  }
+  .brochure-slide-wrap:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+  /* Neutralize the runtime scale transform so each slide prints at full 1920×1080 */
+  .brochure-slide-wrap > div {
+    transform: none !important;
+    width: 1920px !important;
+    height: 1080px !important;
+  }
+  .brochure-slide {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+  /* Force color backgrounds/gradients to render in PDF */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
