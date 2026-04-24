@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import "./brochure.css";
 
 // ============ PDF download (server-side via /api/brochure/pdf) ============
@@ -555,8 +554,12 @@ function Slide({ id, children, printMode = false }: { id: string; children: Reac
 export default function BrochurePage() {
   const [exportStatus, setExportStatus] = useState("");
   const isExporting = exportStatus !== "";
-  const searchParams = useSearchParams();
-  const isPrintMode = searchParams?.get("print") === "1";
+  const [isPrintMode, setIsPrintMode] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setIsPrintMode(new URLSearchParams(window.location.search).get("print") === "1");
+  }, []);
 
   async function handleDownload() {
     if (isExporting) return;
