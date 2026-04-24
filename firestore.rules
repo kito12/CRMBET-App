@@ -17,18 +17,32 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == uid;
     }
 
+    // Shape guards for public ticket submissions.
+    function isShortString(v) {
+      return v is string && v.size() > 0 && v.size() <= 500;
+    }
+    function isLongString(v) {
+      return v is string && v.size() <= 10000;
+    }
+    function isEmail(v) {
+      return v is string && v.size() <= 320 && v.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$');
+    }
+    function isReasonableTicket(d) {
+      return d.keys().hasAll(['customer', 'email', 'issue']) &&
+        isShortString(d.customer) &&
+        isEmail(d.email) &&
+        isLongString(d.issue) &&
+        // total document size soft-cap: reject payloads over ~50KB worth of fields
+        d.size() <= 40;
+    }
+
     // ── Users ─────────────────────────────────────────────────────────────────
-    // All agents can read the user list (needed for agent dropdowns & presence).
-    // Each user can update their own doc, but cannot elevate their own role.
-    // Only admins can change roles or delete users.
 
     match /users/{uid} {
       allow read: if isAuthenticated();
       allow create: if isSelf(uid);
       allow update: if isAuthenticated() && (
-        // Admin can update anything
         isAdmin() ||
-        // Users can update their own doc but NOT change the role field
         (isSelf(uid) &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(["role"]))
       );
@@ -36,9 +50,6 @@ service cloud.firestore {
     }
 
     // ── Invites ───────────────────────────────────────────────────────────────
-    // Only admins can create invites.
-    // Any authenticated user can read/delete an invite addressed to their email
-    // (this powers consumeInvite on sign-in).
 
     match /invites/{inviteId} {
       allow read:   if isAdmin() ||
@@ -49,27 +60,42 @@ service cloud.firestore {
     }
 
     // ── Tickets ───────────────────────────────────────────────────────────────
-    // Public create: the customer-facing /submit form writes here without auth.
-    // All authenticated agents can read, update, and delete tickets.
+    // Public can CREATE (customer-facing /submit form) — but the payload must
+    // match a tight shape. All other operations require an authenticated agent.
+    // Delete is admin-only so agents can't erase history.
 
     match /tickets/{ticketId} {
-      allow create: if true;                    // public ticket submission
-      allow read, update, delete: if isAuthenticated();
+      allow create: if isReasonableTicket(request.resource.data);
+      allow read:   if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAdmin();
     }
 
     // ── Customers ─────────────────────────────────────────────────────────────
+    // Any agent can read (they need to see who they're replying to) and
+    // create/update. Only admins can delete — PII deletion shouldn't be
+    // a one-click action for every agent.
+
     match /customers/{customerId} {
-      allow read, write: if isAuthenticated();
+      allow read:   if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAdmin();
     }
 
     // ── Notifications ─────────────────────────────────────────────────────────
+    // A notification doc should carry a `uid` field identifying its recipient.
+    // Only that user (or an admin) can read/update/delete it.
+
     match /notifications/{notifId} {
-      allow read, write: if isAuthenticated();
+      allow read, update, delete: if isAuthenticated() && (
+        isAdmin() || resource.data.uid == request.auth.uid
+      );
+      // Creates are authenticated; the server-side flow writes these.
+      allow create: if isAuthenticated();
     }
 
     // ── Canned Responses ──────────────────────────────────────────────────────
-    // All agents can read (needed for Insert Template in ticket modal).
-    // Only admins can add, edit, or delete templates.
 
     match /cannedResponses/{crId} {
       allow read:  if isAuthenticated();
@@ -77,8 +103,6 @@ service cloud.firestore {
     }
 
     // ── Settings ──────────────────────────────────────────────────────────────
-    // All agents can read settings (escalation config is applied system-wide).
-    // Only admins can change them.
 
     match /settings/{settingId} {
       allow read:  if isAuthenticated();
@@ -86,10 +110,8 @@ service cloud.firestore {
     }
 
     // ── Conversations ─────────────────────────────────────────────────────────
-    // Only participants can read or write a conversation document.
-    // Messages subcollection: participants can read; only the sender can create.
-    // Typing subcollection: any authenticated user can read; each user owns only
-    // their own typing doc (keyed by their uid).
+    // Only participants can read or write a conversation.
+    // Messages: restricted to participants of the parent conversation.
 
     match /conversations/{convId} {
       allow read:   if isAuthenticated() &&
@@ -98,17 +120,26 @@ service cloud.firestore {
         request.auth.uid in request.resource.data.participants;
       allow update: if isAuthenticated() &&
         request.auth.uid in resource.data.participants;
+      allow delete: if isAdmin();
 
       match /messages/{msgId} {
-        allow read:   if isAuthenticated();
+        allow read: if isAuthenticated() &&
+          request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.participants;
         allow create: if isAuthenticated() &&
-          request.resource.data.senderId == request.auth.uid;
+          request.resource.data.senderId == request.auth.uid &&
+          request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.participants;
+        // Messages are immutable once sent; no update/delete path.
       }
 
       match /typing/{uid} {
         allow read:          if isAuthenticated();
         allow write, delete: if isAuthenticated() && request.auth.uid == uid;
       }
+    }
+
+    // Default deny for any collection not matched above.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

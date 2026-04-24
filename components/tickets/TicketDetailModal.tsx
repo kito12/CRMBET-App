@@ -123,9 +123,14 @@ function auditLabel(entry: AuditEntry): string {
 
 async function callSendEmail(payload: Record<string, string>) {
   try {
+    const { auth } = await import("@/lib/firebase");
+    const token = await auth.currentUser?.getIdToken();
     await fetch("/api/send-email", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify(payload),
     });
   } catch { /* non-blocking */ }
@@ -322,9 +327,14 @@ export default function TicketDetailModal({ ticket, onClose, onSave }: Props) {
       setForm(updated);
       onSave(updated);
 
+      const { auth } = await import("@/lib/firebase");
+      const token = await auth.currentUser?.getIdToken();
       const res = await fetch("/api/send-email", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           type: "agent_reply",
           to: form.email,

@@ -1,8 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
+import { verifyAuth, requireAdmin } from "@/lib/server/verify-auth";
+import { adminDb } from "@/lib/server/firebase-admin";
+
+export const runtime = "nodejs";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FROM = process.env.EMAIL_FROM ?? "DeskHive Support <onboarding@resend.dev>";
+
+// Simple per-IP rate limiter for the public ticket_submitted path.
+// Not persistent across serverless cold-starts — good enough as a first line
+// of defence; pair with Firebase App Check for real protection.
+const submitHits = new Map<string, { count: number; resetAt: number }>();
+const SUBMIT_WINDOW_MS = 60_000; // 1 minute
+const SUBMIT_MAX = 5;            // 5 confirmation emails per IP per minute
+
+function checkSubmitRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = submitHits.get(ip);
+  if (!entry || entry.resetAt < now) {
+    submitHits.set(ip, { count: 1, resetAt: now + SUBMIT_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= SUBMIT_MAX) return false;
+  entry.count++;
+  return true;
+}
+
+// Basic input validation helpers
+function isString(v: unknown, max = 1000): v is string {
+  return typeof v === "string" && v.length > 0 && v.length <= max;
+}
+function isEmail(v: unknown): v is string {
+  return typeof v === "string" && v.length <= 320 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
 
 // ── HTML email templates ──────────────────────────────────────────────────────
 
@@ -151,32 +182,79 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { type, to, ticketId, customerName, agentMessage, issueType, invitedBy, appUrl } = await req.json();
+    const body = await req.json();
+    const { type, to, ticketId, customerName, agentMessage, issueType, invitedBy, appUrl } = body;
 
-    if (!to) {
-      return NextResponse.json({ error: "Missing required field: to" }, { status: 400 });
+    if (!isEmail(to)) {
+      return NextResponse.json({ error: "Invalid 'to' address" }, { status: 400 });
     }
+    if (!isString(type, 40)) {
+      return NextResponse.json({ error: "Missing 'type'" }, { status: 400 });
+    }
+
+    // ── Authorize per email type ───────────────────────────────────────────
+    // ticket_submitted is the only public path (customer confirmation after
+    // submitting a ticket). Everything else is an agent/admin action.
 
     let subject: string;
     let html: string;
 
     switch (type) {
-      case "ticket_submitted":
+      case "ticket_submitted": {
+        // Rate limit by IP
+        const ip =
+          req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+          req.headers.get("x-real-ip") ||
+          "unknown";
+        if (!checkSubmitRateLimit(ip)) {
+          return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+        }
+        // Validate required fields
+        if (!isString(ticketId, 80) || !isString(customerName, 120)) {
+          return NextResponse.json({ error: "Invalid submission fields" }, { status: 400 });
+        }
+        // Verify the ticket actually exists and the email matches — prevents
+        // using this endpoint to spray arbitrary confirmations.
+        const snap = await adminDb().doc(`tickets/${ticketId}`).get();
+        if (!snap.exists) {
+          return NextResponse.json({ error: "Unknown ticket" }, { status: 404 });
+        }
+        const ticket = snap.data() as { email?: string; customerEmail?: string } | undefined;
+        const ticketEmail = (ticket?.email ?? ticket?.customerEmail ?? "").toLowerCase();
+        if (!ticketEmail || ticketEmail !== to.toLowerCase()) {
+          return NextResponse.json({ error: "Email does not match ticket" }, { status: 403 });
+        }
         subject = `Your support request has been received [${ticketId}]`;
         html = ticketSubmittedHtml(customerName, ticketId, issueType ?? "General");
         break;
-      case "ticket_resolved":
+      }
+      case "ticket_resolved": {
+        await verifyAuth(req);
+        if (!isString(ticketId, 80) || !isString(customerName, 120)) {
+          return NextResponse.json({ error: "Invalid fields" }, { status: 400 });
+        }
         subject = `Your ticket has been resolved [${ticketId}]`;
         html = ticketResolvedHtml(customerName, ticketId);
         break;
-      case "agent_reply":
+      }
+      case "agent_reply": {
+        await verifyAuth(req);
+        if (!isString(ticketId, 80) || !isString(customerName, 120) || !isString(agentMessage, 10_000)) {
+          return NextResponse.json({ error: "Invalid fields" }, { status: 400 });
+        }
         subject = `Message from DeskHive Support [${ticketId}]`;
-        html = agentReplyHtml(customerName, ticketId, agentMessage ?? "");
+        html = agentReplyHtml(customerName, ticketId, agentMessage);
         break;
-      case "agent_invite":
+      }
+      case "agent_invite": {
+        await requireAdmin(req);
+        if (!isString(invitedBy, 200) || !isString(appUrl, 500)) {
+          return NextResponse.json({ error: "Invalid fields" }, { status: 400 });
+        }
         subject = `You've been invited to DeskHive CRM`;
-        html = agentInviteHtml(invitedBy ?? "Your admin", appUrl ?? "", to);
+        html = agentInviteHtml(invitedBy, appUrl, to);
         break;
+      }
       default:
         return NextResponse.json({ error: "Unknown email type" }, { status: 400 });
     }
@@ -185,7 +263,11 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error }, { status: 400 });
     return NextResponse.json({ id: data?.id });
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/Authorization|verify|token|admin role/i.test(message)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     console.error("Email send failed:", err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

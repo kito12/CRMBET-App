@@ -137,9 +137,14 @@ export default function UsersPage() {
       const appUrl = window.location.origin;
       let emailSent = false;
       try {
+        const { auth: clientAuth } = await import("@/lib/firebase");
+        const token = await clientAuth.currentUser?.getIdToken();
         const res = await fetch("/api/send-email", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({
             type: "agent_invite",
             to: email,
