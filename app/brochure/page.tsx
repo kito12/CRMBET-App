@@ -3,6 +3,62 @@
 import { useEffect, useRef, useState } from "react";
 import "./brochure.css";
 
+// ============ PDF download (client-side, device-independent) ============
+async function downloadBrochurePDF(setStatus: (s: string) => void) {
+  setStatus("Preparing…");
+  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+    import("html2canvas"),
+    import("jspdf"),
+  ]);
+
+  const wraps = Array.from(
+    document.querySelectorAll<HTMLElement>(".brochure-slide-wrap")
+  );
+  if (!wraps.length) { setStatus(""); return; }
+
+  const pdf = new jsPDF({ orientation: "landscape", unit: "px", format: [1920, 1080] });
+  const root = document.querySelector<HTMLElement>(".brochure-root");
+  root?.classList.add("brochure-exporting");
+
+  try {
+    for (let i = 0; i < wraps.length; i++) {
+      setStatus(`Rendering slide ${i + 1} / ${wraps.length}…`);
+      const wrap = wraps[i];
+      const inner = wrap.firstElementChild as HTMLElement;
+
+      // Unscale so html2canvas captures at native 1920×1080.
+      const origTransform = inner.style.transform;
+      const origHeight = wrap.style.height;
+      inner.style.transform = "none";
+      wrap.style.height = "1080px";
+
+      const canvas = await html2canvas(inner, {
+        width: 1920,
+        height: 1080,
+        windowWidth: 1920,
+        windowHeight: 1080,
+        scale: 1,
+        backgroundColor: null,
+        useCORS: true,
+        logging: false,
+      });
+
+      inner.style.transform = origTransform;
+      wrap.style.height = origHeight;
+
+      const img = canvas.toDataURL("image/jpeg", 0.92);
+      if (i > 0) pdf.addPage([1920, 1080], "landscape");
+      pdf.addImage(img, "JPEG", 0, 0, 1920, 1080, undefined, "FAST");
+    }
+
+    setStatus("Saving…");
+    pdf.save("DeskHive-Brochure.pdf");
+  } finally {
+    root?.classList.remove("brochure-exporting");
+    setStatus("");
+  }
+}
+
 // ============ Icons ============
 type IconProps = { size?: number; stroke?: number; fill?: string };
 const Icon = ({ size = 18, stroke = 1.75, fill = "none", children }: IconProps & { children: React.ReactNode }) => (
@@ -523,6 +579,20 @@ function Slide({ id, children }: { id: string; children: React.ReactNode }) {
 
 // ============ Page ============
 export default function BrochurePage() {
+  const [exportStatus, setExportStatus] = useState("");
+  const isExporting = exportStatus !== "";
+
+  async function handleDownload() {
+    if (isExporting) return;
+    try {
+      await downloadBrochurePDF(setExportStatus);
+    } catch (e) {
+      console.error(e);
+      setExportStatus("");
+      alert("Could not generate PDF. Please try again.");
+    }
+  }
+
   return (
     <>
       {/* Google fonts */}
@@ -543,21 +613,31 @@ export default function BrochurePage() {
           <a href="#slide-cta">06 · CTA</a>
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={handleDownload}
+            disabled={isExporting}
             className="brochure-bar-dl"
             aria-label="Download as PDF"
           >
-            ↓ PDF
+            {isExporting ? "…" : "↓ PDF"}
           </button>
         </nav>
         <button
           type="button"
-          onClick={() => window.print()}
+          onClick={handleDownload}
+          disabled={isExporting}
           className="brochure-fab"
           aria-label="Download as PDF"
         >
-          ↓ PDF
+          {isExporting ? "…" : "↓ PDF"}
         </button>
+        {isExporting && (
+          <div className="brochure-export-overlay" role="status" aria-live="polite">
+            <div className="brochure-export-card">
+              <div className="brochure-export-spinner" />
+              <div className="brochure-export-text">{exportStatus}</div>
+            </div>
+          </div>
+        )}
 
         <div className="brochure-deck">
           {/* 01 — COVER */}

@@ -1296,6 +1296,47 @@
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
 }
 
+/* ================= EXPORT OVERLAY (shown while generating PDF) ================= */
+.brochure-export-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(12, 14, 20, 0.78);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.brochure-export-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 28px 36px;
+  border-radius: 18px;
+  background: rgba(26, 28, 40, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-family: var(--font-body);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+}
+.brochure-export-spinner {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: #b08cff;
+  animation: brochureSpin 0.9s linear infinite;
+}
+@keyframes brochureSpin { to { transform: rotate(360deg); } }
+.brochure-export-text { font-size: 14px; color: rgba(255, 255, 255, 0.85); }
+
+/* While exporting, clip overflow so the momentarily-unscaled slides don't
+   cause the page to flicker or horizontal-scroll. */
+.brochure-root.brochure-exporting { overflow: hidden; }
+.brochure-root.brochure-exporting .brochure-deck { overflow: hidden; }
+
 /* ================= MOBILE — hide floating nav, show FAB, users just scroll ================= */
 @media (max-width: 768px) {
   .brochure-root .brochure-bar { display: none !important; }
