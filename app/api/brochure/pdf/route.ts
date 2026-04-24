@@ -52,11 +52,12 @@ export async function GET(req: NextRequest) {
     const page = await browser.newPage();
     await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
 
-    await page.goto(brochureUrl, { waitUntil: "networkidle0", timeout: 45000 });
-
-    // Give web fonts + gradient rendering a beat to settle.
+    // Firebase auth keeps a long-lived connection, so networkidle0 never fires.
+    // domcontentloaded + explicit font/frame waits is reliable.
+    await page.goto(brochureUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
+    await page.waitForSelector(".brochure-slide-print", { timeout: 20000 });
     await page.evaluateHandle("document.fonts.ready");
-    await new Promise((r) => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, 1200));
 
     const pdf = await page.pdf({
       width: "1920px",

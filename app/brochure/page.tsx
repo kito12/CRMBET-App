@@ -9,7 +9,9 @@ async function downloadBrochurePDF(setStatus: (s: string) => void) {
   const res = await fetch("/api/brochure/pdf", { cache: "no-store" });
   if (!res.ok) {
     setStatus("");
-    throw new Error(`PDF generation failed (${res.status})`);
+    let detail = "";
+    try { detail = JSON.stringify(await res.json()); } catch {}
+    throw new Error(`PDF generation failed (${res.status}) ${detail}`);
   }
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
@@ -568,7 +570,7 @@ export default function BrochurePage() {
     } catch (e) {
       console.error(e);
       setExportStatus("");
-      alert("Could not generate PDF. Please try again.");
+      alert("Could not generate PDF.\n\n" + (e instanceof Error ? e.message : String(e)));
     }
   }
 
