@@ -84,15 +84,14 @@ service cloud.firestore {
     }
 
     // ── Notifications ─────────────────────────────────────────────────────────
-    // A notification doc should carry a `uid` field identifying its recipient.
-    // Only that user (or an admin) can read/update/delete it.
+    // Notifications are team-wide (system events about tickets, not per-user
+    // alerts). Any authenticated agent can read/write. Delete is admin-only.
+    // If/when notifications gain a `uid` field for per-user delivery, tighten
+    // this rule to `resource.data.uid == request.auth.uid`.
 
     match /notifications/{notifId} {
-      allow read, update, delete: if isAuthenticated() && (
-        isAdmin() || resource.data.uid == request.auth.uid
-      );
-      // Creates are authenticated; the server-side flow writes these.
-      allow create: if isAuthenticated();
+      allow read, create, update: if isAuthenticated();
+      allow delete: if isAdmin();
     }
 
     // ── Canned Responses ──────────────────────────────────────────────────────
