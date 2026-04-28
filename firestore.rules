@@ -65,7 +65,10 @@ service cloud.firestore {
     // Delete is admin-only so agents can't erase history.
 
     match /tickets/{ticketId} {
-      allow create: if isReasonableTicket(request.resource.data);
+      // Public (unauth) creates must pass strict shape validation — this is
+      // the bot-defence on /submit. Authed agents can create any shape.
+      allow create: if isAuthenticated() ||
+        isReasonableTicket(request.resource.data);
       allow read:   if isAuthenticated();
       allow update: if isAuthenticated();
       allow delete: if isAdmin();
