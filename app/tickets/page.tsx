@@ -122,7 +122,7 @@ function isVIPTicket(ticket: Ticket, customers: { clientId: string; accountType:
 }
 
 export default function TicketsPage() {
-  const { tickets, setTickets, customers, hydrated } = useData();
+  const { tickets, setTickets, customers, setCustomers, hydrated } = useData();
   const { user: currentUser } = useAuth();
   const [agentList, setAgentList] = useState<string[]>(["Unassigned"]);
 
@@ -402,8 +402,26 @@ export default function TicketsPage() {
     const newId = `TKT-${Date.now()}`;
     const authorName = currentUser?.name ?? "Agent";
     const createdEntry: AuditEntry = { id: `a-create-${Date.now()}`, action: "created", author: authorName, timestamp: label };
+
+    // If a Client ID was entered and no matching customer exists yet,
+    // auto-create a minimal customer record so the ticket links to a real
+    // profile rather than a dangling reference.
+    const trimmedClientId = form.clientId.trim().toUpperCase();
+    if (trimmedClientId && !customers.some(c => c.clientId === trimmedClientId)) {
+      setCustomers(prev => [{
+        clientId: trimmedClientId,
+        name: form.customer.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
+        country: "",
+        accountType: "Standard",
+        status: "Active",
+        createdAt: now.toISOString(),
+      }, ...prev]);
+    }
+
     setTickets(prev => [{
-      id: newId, clientId: form.clientId || "—", customer: form.customer,
+      id: newId, clientId: trimmedClientId || "—", customer: form.customer,
       email: form.email, phone: form.phone, issue: form.issue, priority: form.priority,
       status: "Open" as TicketStatus, agent: form.agent,
       created: label, createdAt: now.toISOString(),
@@ -905,8 +923,12 @@ export default function TicketsPage() {
               {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
             </div>
           </div>
-          <InputField label="Phone Number" type="tel" placeholder="+1 555 000 0000" value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          <div className="grid grid-cols-2 gap-4">
+            <InputField label="Client ID" placeholder="CLT-1042" value={form.clientId}
+              onChange={(e) => setForm({ ...form, clientId: e.target.value.toUpperCase() })} />
+            <InputField label="Phone Number" type="tel" placeholder="+1 555 000 0000" value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <SelectField label="Issue Type" value={form.issue} onChange={(e) => setForm({ ...form, issue: e.target.value })}>
               {["Withdrawal Issue","Restricted Withdrawals","Deposits","Blocked Accounts","Bet Settlement","Account Access","Bonus Dispute","Live Betting","Other"].map(o => <option key={o}>{o}</option>)}
